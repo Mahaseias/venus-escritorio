@@ -54,6 +54,32 @@ function prune() {
   if (tasks.length > 500) { tasks = tasks.slice(-500); save(); }
 }
 
+/* ---------- atividades das rotinas (Notion) ---------- */
+const NOTION_TOKEN = process.env.NOTION_TOKEN || '';
+const NOTION_DB = process.env.NOTION_ATIVIDADES_DB || (cfg.notion || {}).atividades_db || '';
+let atividades = [], notionOk = null;
+async function pollNotion() {
+  if (!NOTION_TOKEN || !NOTION_DB) return;
+  try {
+    const since = new Date(Date.now() - 36 * 3600e3).toISOString();
+    const r = await fetch(`${process.env.NOTION_API_BASE || 'https://api.notion.com'}/v1/databases/${NOTION_DB}/query`, {
+      method: 'POST', signal: AbortSignal.timeout(15000),
+      headers: {'Authorization': 'Bearer ' + NOTION_TOKEN, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json'},
+      body: JSON.stringify({filter: {property: 'Início', date: {on_or_after: since}}, sorts: [{property: 'Início', direction: 'descending'}], page_size: 100})
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+    const j = await r.json();
+    const txt = p => (p?.rich_text || p?.title || []).map(t => t.plain_text).join('');
+    atividades = j.results.map(pg => { const p = pg.properties; return {
+      rotina: txt(p['Rotina ID']).trim(), func: p['Funcionário']?.select?.name || '', status: p['Status']?.select?.name || '',
+      inicio: Date.parse(p['Início']?.date?.start || '') || 0, fim: Date.parse(p['Fim']?.date?.start || '') || 0, resumo: txt(p['Resumo']).slice(0, 800)
+    }; }).filter(a => a.rotina && a.inicio);
+    if (notionOk !== true) console.log(`Notion conectado · ${atividades.length} registros recentes`);
+    notionOk = true;
+  } catch (e) { if (notionOk !== false) console.error('Notion indisponível:', e.message); notionOk = false; }
+}
+pollNotion(); setInterval(pollNotion, 60000);
+
 /* ---------- turnos ---------- */
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const fmtTZ = new Intl.DateTimeFormat('en-US', {timeZone: TZ, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
@@ -68,6 +94,30 @@ function emTurno(f, d) {
   if (a === b) return dias.includes(dow);
   if (a < b) return dias.includes(dow) && min >= a && min < b;
   return (dias.includes(dow) && min >= a) || (dias.includes((dow + 6) % 7) && min < b);
+}
+
+/* agenda do dia: rotinas de cada funcionário e o que o Notion registrou */
+function agenda(f, now = Date.now()) {
+  const {dow, min} = agora(new Date(now)), out = [];
+  for (const r of f.rotinas || []) {
+    if (!(r.dias || [0, 1, 2, 3, 4, 5, 6]).includes(dow)) continue;
+    for (const h of r.horas || []) {
+      const slot = now - (min - toMin(h)) * 60000;
+      const a = atividades.find(x => x.rotina === r.id && x.inicio >= slot - 20 * 60000 && x.inicio <= slot + 180 * 60000);
+      let status;
+      if (a) status = a.status === 'Concluída' ? 'feito' : a.status === 'Erro' ? 'erro' : 'fazendo';
+      else if (!NOTION_TOKEN) status = now < slot ? 'proxima' : 'agendada';
+      else status = now < slot ? 'proxima' : now - slot > 45 * 60000 ? 'nao-rodou' : 'aguardando';
+      out.push({id: r.id, nome: r.nome, hora: h, slot, status, inicio: a?.inicio || null, fim: a?.fim || null, resumo: a?.resumo || ''});
+    }
+  }
+  return out.sort((a, b) => a.hora.localeCompare(b.hora));
+}
+function rotinaAtual(f, now = Date.now()) {
+  return agenda(f, now).find(i =>
+    (i.status === 'fazendo' && now - i.inicio < 3 * 3600e3) ||
+    (i.status === 'feito' && now - i.fim < 4 * 60000) ||
+    (!NOTION_TOKEN && now >= i.slot && now - i.slot < 5 * 60000)) || null;
 }
 
 /* quem está trabalhando: sessão de hook com o id do funcionário, ou só com o setor (vai para quem está de turno) */
@@ -85,6 +135,7 @@ function estado() {
     if (alvo) ativos.add(alvo.id);
   }
   for (const t of tasks) if (t.status === 'andamento') ativos.add(t.func);
+  for (const f of FUNC) if (rotinaAtual(f)) ativos.add(f.id);
   return ativos;
 }
 
@@ -134,11 +185,11 @@ function turnoTexto(t) {
   const h = t.inicio === t.fim ? '24 horas' : `${t.inicio}–${t.fim}`;
   return `${dias} · ${h}`;
 }
-const pubTask = t => ({id: t.id, func: t.func, titulo: t.titulo, texto: t.texto, autor: t.autor, status: t.status, criada: t.criada, iniciada: t.iniciada || null, concluida: t.concluida || null, resultado: t.resultado || ''});
+const pubTask = t => ({ordem: t.ordem ?? t.criada, id: t.id, func: t.func, titulo: t.titulo, texto: t.texto, autor: t.autor, status: t.status, criada: t.criada, iniciada: t.iniciada || null, concluida: t.concluida || null, resultado: t.resultado || ''});
 function office(user) {
   const ativos = estado();
   return {
-    agora: Date.now(), fuso: TZ, setores: SETORES,
+    agora: Date.now(), fuso: TZ, setores: SETORES, notion: user ? (NOTION_TOKEN ? (notionOk ? 'ok' : 'erro') : 'desligado') : undefined,
     logado: user ? {nome: user.nome || user.email, email: user.email} : null,
     worker: user ? {online: Date.now() - workerSeen < 60000, visto: workerSeen || null} : undefined,
     funcionarios: FUNC.map(f => {
@@ -146,7 +197,9 @@ function office(user) {
       const fila = tasks.filter(t => t.func === f.id && t.status === 'fila').length;
       const o = {id: f.id, nome: f.nome, cargo: f.cargo, setor: f.setor, turno: turnoTexto(f.turno), bio: f.bio, faz: f.faz, hobbies: f.hobbies, aparencia: f.aparencia,
         emTurno: emTurno(f), trabalhando: ativos.has(f.id)};
-      if (user) { o.atividade = atual ? atual.titulo : null; o.fila = fila; }
+      const rot = rotinaAtual(f);
+      o.rotinasHoje = agenda(f).length;
+      if (user) { o.atividade = atual ? atual.titulo : rot ? rot.nome : null; o.fila = fila; o.agenda = agenda(f).map(({slot, ...i}) => i); }
       return o;
     })
   };
@@ -181,7 +234,10 @@ http.createServer(async (req, res) => {
       if (path === '/api/tasks') {
         if (!user) return send(401, {erro: 'Faça login'});
         const f = url.searchParams.get('func');
-        return send(200, tasks.filter(t => !f || t.func === f).slice(-30).reverse().map(pubTask));
+        const doFunc = tasks.filter(t => !f || t.func === f);
+        const fila = doFunc.filter(t => t.status === 'fila').sort((a, b) => (a.ordem ?? a.criada) - (b.ordem ?? b.criada));
+        const resto = doFunc.filter(t => t.status !== 'fila').slice(-30).reverse();
+        return send(200, [...fila, ...resto].map(pubTask));
       }
     }
     if (req.method !== 'POST') return send(404, {});
@@ -202,7 +258,9 @@ http.createServer(async (req, res) => {
       if (!bearerOk(req)) return send(401, {});
       workerSeen = Date.now(); prune();
       const ocupados = new Set(tasks.filter(t => t.status === 'andamento').map(t => t.func));
-      const t = tasks.find(t => t.status === 'fila' && byId[t.func] && emTurno(byId[t.func]) && !ocupados.has(t.func));
+      const prontas = tasks.filter(t => t.status === 'fila' && byId[t.func] && emTurno(byId[t.func]) && !ocupados.has(t.func));
+      prontas.sort((a, b) => (a.ordem ?? a.criada) - (b.ordem ?? b.criada));
+      const t = prontas[0];
       if (!t) return send(200, {tarefa: null});
       t.status = 'andamento'; t.iniciada = Date.now(); save();
       const f = byId[t.func];
@@ -240,9 +298,26 @@ http.createServer(async (req, res) => {
       if (!byId[func]) return send(400, {erro: 'Funcionário inválido'});
       if (txt.length < 3 || txt.length > 8000) return send(400, {erro: 'Descreva a tarefa (até 8000 caracteres).'});
       if (tasks.filter(t => t.status === 'fila').length >= 100) return send(429, {erro: 'Fila cheia.'});
-      const t = {id: randomUUID(), func, texto: txt, titulo: titulo(txt), autor: user.nome || user.email, status: 'fila', criada: Date.now()};
+      const ultima = Math.max(0, ...tasks.filter(t => t.func === func && t.status === 'fila').map(t => t.ordem ?? t.criada));
+      const t = {id: randomUUID(), func, texto: txt, titulo: titulo(txt), autor: user.nome || user.email, status: 'fila', criada: Date.now(), ordem: Math.max(Date.now(), ultima + 1)};
       tasks.push(t); save();
       return send(201, pubTask(t));
+    }
+    const mv = /^\/api\/tasks\/([\w-]{8,64})\/mover$/.exec(path);
+    if (mv) {
+      const t = tasks.find(t => t.id === mv[1]);
+      if (!t || t.status !== 'fila') return send(409, {erro: 'Só dá para reordenar tarefas na fila.'});
+      const {para} = await readJSON(req, 256);
+      const fila = tasks.filter(x => x.func === t.func && x.status === 'fila').sort((a, b) => (a.ordem ?? a.criada) - (b.ordem ?? b.criada));
+      fila.forEach((x, i) => { x.ordem = i; });
+      const i = fila.indexOf(t);
+      if (para === 'topo') { fila.splice(i, 1); fila.unshift(t); }
+      else if (para === 'cima' && i > 0) { [fila[i - 1], fila[i]] = [fila[i], fila[i - 1]]; }
+      else if (para === 'baixo' && i < fila.length - 1) { [fila[i + 1], fila[i]] = [fila[i], fila[i + 1]]; }
+      else if (!['topo', 'cima', 'baixo'].includes(para)) return send(400, {erro: 'Direção inválida'});
+      fila.forEach((x, k) => { x.ordem = k; });
+      save();
+      return send(200, {ok: true});
     }
     const m = /^\/api\/tasks\/([\w-]{8,64})\/cancelar$/.exec(path);
     if (m) {

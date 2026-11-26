@@ -97,6 +97,17 @@ canvas#office{display:block;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0
 li.open .tbody{display:block}
 .tbody pre{white-space:pre-wrap;word-break:break-word;font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:#120f1c;border-radius:8px;padding:8px 10px;margin:6px 0;max-height:280px;overflow:auto}
 .tbody pre.res{border-left:3px solid var(--accent)}
+.tasks>li.nob{border:0;margin:10px 0 4px}
+.tasks>li.sub{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.trow.q{grid-template-columns:auto 1fr auto}
+.pos{width:20px;height:20px;border-radius:6px;background:#3a3156;color:#e3d8f5;display:grid;place-items:center;font-size:11px;font-weight:700}
+.ord{display:inline-flex;gap:3px}
+.ib{background:#221c35;border:1px solid #3a3156;border-radius:6px;width:24px;height:22px;font-size:11px;color:#d8c8f2;padding:0;line-height:1}
+.ib:hover:not(:disabled){border-color:var(--accent);color:#fff}
+.ib:disabled{opacity:.3;cursor:default}
+.ib.urg{color:#ffd27a}
+.agenda .trow{grid-template-columns:42px 1fr auto}
+.hr{font-variant-numeric:tabular-nums;color:var(--accent2)!important;font-weight:600}
 
 /* Login */
 dialog{background:var(--panel);color:var(--text);border:1px solid #3a3156;border-radius:14px;padding:22px;width:min(360px,92vw);box-shadow:0 30px 80px rgba(0,0,0,.6)}

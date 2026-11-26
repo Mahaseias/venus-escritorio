@@ -20,6 +20,7 @@ Variáveis de ambiente (aba **Environment** do serviço):
 | `SESSION_SECRET` | Gerada pelo Render. Assina o cookie de login. |
 | `OFFICE_USERS` | Lista de quem pode entrar e mandar tarefas (veja abaixo). |
 | `STATE_FILE` | Opcional. Caminho de um arquivo para guardar fila e histórico, ex.: `/data/state.json`. |
+| `NOTION_TOKEN` | Token de uma integração interna do Notion com acesso à base "Atividades do escritório". Sem ele, a agenda aparece só pelos horários, sem confirmar se a rotina rodou. |
 | `TASK_TIMEOUT_MIN` | Opcional (padrão 90). Depois desse tempo sem resposta, a tarefa vira "erro". |
 
 **Persistência:** sem `STATE_FILE` em disco persistente, a fila e o histórico zeram a cada deploy ou reinício. No plano gratuito do Render não existe disco persistente. Para manter o histórico, use o plano Starter, adicione um Disk montado em `/data` e defina `STATE_FILE=/data/state.json`.
@@ -52,6 +53,19 @@ Edite `public/agents.json`. Cada funcionário tem:
 - `instrucoes`: o "jeito de trabalhar" que o worker envia ao Claude junto com cada tarefa.
 
 Até 3 funcionários por sala. Fora do turno o boneco vai embora, e tarefas enviadas nesse período ficam na fila até ele voltar.
+
+## 3.1 Rotinas (tarefas agendadas)
+
+Cada funcionário tem `rotinas` no `agents.json` (id, nome, dias, horas). As tarefas agendadas da Venus rodam na nuvem e registram início e fim na base **Atividades do escritório** do Notion (Venus Tecnologia → Documentação). O servidor lê essa base a cada minuto e:
+
+- mostra o funcionário trabalhando enquanto a rotina está em "Fazendo";
+- monta a **Agenda de hoje** na ficha (Concluída, Fazendo, Erro, Próxima, Não rodou), com o resumo de cada execução.
+
+Para ligar: em notion.so/profile/integrations crie uma integração interna, copie o token, abra a base "Atividades do escritório" → ••• → Conexões → adicione a integração, e cole o token em `NOTION_TOKEN` no Render.
+
+## 3.2 Fila e prioridade
+
+Tarefas enviadas pela ficha entram na fila do funcionário. Na ficha, ▲ ▼ mudam a ordem e ⤒ coloca a tarefa em primeiro. O worker sempre executa a primeira da fila de quem está no turno.
 
 ## 4. Worker no PC de casa
 

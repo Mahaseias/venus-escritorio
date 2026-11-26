@@ -345,6 +345,7 @@ function openFicha(id){
     h('section',{},h('h4',{},'Sobre'),h('p',{},f.bio||'')),
     h('section',{},h('h4',{},'O que faz'),h('ul',{class:'faz'},(f.faz||[]).map(x=>h('li',{},x)))),
     h('section',{},h('h4',{},'Hobbies'),h('div',{class:'chips'},(f.hobbies||[]).map(x=>h('span',{class:'chip'},x)))),
+    h('section',{id:'fagenda'}),
     h('section',{id:'ftasks'})
   );
   updateFicha(true);
@@ -358,7 +359,28 @@ function updateFicha(full){
   if(demo){now.replaceChildren(h('b',{},'Agora'),h('p',{},f.atividade||(f.trabalhando?'Trabalhando':'Sem tarefa no momento')))}
   else if(me){now.replaceChildren(h('b',{},'Agora'),h('p',{},f.atividade||(f.trabalhando?'Em uma sessão do Claude Code':'Sem tarefa no momento')),f.fila?h('p',{class:'muted small'},`${f.fila} tarefa(s) na fila`):'')}
   else now.replaceChildren(h('b',{},'Agora'),h('p',{},f.trabalhando&&live()?'Trabalhando em uma tarefa':'Sem tarefa no momento'));
+  renderAgenda(f);
   if(full)renderTaskBox(f);
+}
+const AG={feito:['Concluída','d'],fazendo:['Fazendo','r'],erro:['Erro','e'],proxima:['Próxima','q'],aguardando:['Aguardando','q'],'nao-rodou':['Não rodou','e'],agendada:['Agendada','q']};
+function renderAgenda(f){
+  const sec=el('fagenda');if(!sec)return;
+  const open=new Set([...sec.querySelectorAll('li.open')].map(li=>li.dataset.k));
+  sec.replaceChildren(h('h4',{},'Agenda de hoje'));
+  if(demo||!me){sec.append(h('p',{class:'muted small'},f.rotinasHoje?`${f.rotinasHoje} rotina(s) programada(s) para hoje.`+(me?'':' Entre para ver os detalhes.'):'Nenhuma rotina programada para hoje.'));return}
+  const list=f.agenda||[];
+  if(!list.length){sec.append(h('p',{class:'muted small'},'Nenhuma rotina programada para hoje.'));return}
+  const ul=h('ul',{class:'tasks agenda'});
+  list.forEach(i=>{
+    const[lab,cls]=AG[i.status]||[i.status,'q'],k=i.id+i.hora;
+    const quando=i.status==='feito'&&i.fim?'às '+fmt(i.fim):i.status==='fazendo'&&i.inicio?'desde '+fmt(i.inicio):'';
+    const li=h('li',{'data-k':k,class:open.has(k)?'open':''},
+      h('div',{class:'trow'},h('time',{class:'hr'},i.hora),h('span',{class:'tt'},i.nome),h('span',{class:'tag '+cls},lab)),
+      h('div',{class:'tbody'},quando?h('p',{class:'muted small'},quando):'',i.resumo?h('pre',{class:'res'},i.resumo):h('p',{class:'muted small'},i.status==='nao-rodou'?'Nenhum registro desta execução no Notion.':'Sem resumo ainda.')));
+    li.querySelector('.trow').onclick=()=>li.classList.toggle('open');
+    ul.append(li);
+  });
+  sec.append(ul);
 }
 function renderTaskBox(f){
   const sec=el('ftasks');sec.replaceChildren(h('h4',{},'Tarefas'));
@@ -382,16 +404,25 @@ function renderTasks(){
   const list=tasksFor===selected?tasksCache:[];
   const open=new Set([...ul.querySelectorAll('li.open')].map(li=>li.dataset.id));
   ul.replaceChildren();
-  if(!list.length){ul.append(h('li',{class:'muted small'},'Nenhuma tarefa ainda.'));return}
-  list.forEach(t=>{
+  if(!list.length){ul.append(h('li',{class:'muted small nob'},'Nenhuma tarefa ainda.'));return}
+  const fila=list.filter(t=>t.status==='fila'),agora=list.filter(t=>t.status==='andamento'),resto=list.filter(t=>t.status!=='fila'&&t.status!=='andamento');
+  const move=async(t,para,ev)=>{ev.stopPropagation();try{await api(`/api/tasks/${t.id}/mover`,{para});loadTasks(selected)}catch(e){alert(e.message)}};
+  const item=(t,pos)=>{
     const[lab,cls]=ST[t.status]||[t.status,'q'];
+    const ctrl=pos!=null?h('span',{class:'ord'},
+      h('button',{class:'ib',title:'Subir',disabled:pos===0,onclick:e=>move(t,'cima',e)},'▲'),
+      h('button',{class:'ib',title:'Descer',disabled:pos===fila.length-1,onclick:e=>move(t,'baixo',e)},'▼'),
+      h('button',{class:'ib urg',title:'Fazer primeiro',disabled:pos===0,onclick:e=>move(t,'topo',e)},'⤒')):'';
     const li=h('li',{'data-id':t.id,class:open.has(t.id)?'open':''},
-      h('div',{class:'trow'},h('span',{class:'tag '+cls},lab),h('span',{class:'tt'},t.titulo),h('time',{},fmtDia(t.concluida||t.iniciada||t.criada))),
+      h('div',{class:'trow'+(pos!=null?' q':'')},pos!=null?h('span',{class:'pos'},String(pos+1)):h('span',{class:'tag '+cls},lab),h('span',{class:'tt'},t.titulo),ctrl||h('time',{},fmtDia(t.concluida||t.iniciada||t.criada))),
       h('div',{class:'tbody'},h('p',{class:'muted small'},`Pedido por ${t.autor} · ${fmtDia(t.criada)}`),h('pre',{},t.texto),t.resultado?h('div',{},h('b',{class:'small'},'Resultado'),h('pre',{class:'res'},t.resultado)):'',
         t.status==='fila'?h('button',{class:'ghost sm',onclick:async ev=>{ev.stopPropagation();try{await api(`/api/tasks/${t.id}/cancelar`,{});loadTasks(selected)}catch(e){alert(e.message)}}},'Cancelar'):''));
     li.querySelector('.trow').onclick=()=>li.classList.toggle('open');
-    ul.append(li);
-  });
+    return li;
+  };
+  if(agora.length){ul.append(h('li',{class:'sub nob'},'Fazendo agora'));agora.forEach(t=>ul.append(item(t,null)))}
+  if(fila.length){ul.append(h('li',{class:'sub nob'},`Na fila (${fila.length}) · ${primeiro(funcById(selected)?.nome||'')} faz de cima para baixo`));fila.forEach((t,i)=>ul.append(item(t,i)))}
+  if(resto.length){ul.append(h('li',{class:'sub nob'},'Histórico'));resto.forEach(t=>ul.append(item(t,null)))}
 }
 async function loadTasks(id){
   try{const r=await fetch('/api/tasks?func='+encodeURIComponent(id),{cache:'no-store'});if(!r.ok)throw 0;const list=await r.json();
