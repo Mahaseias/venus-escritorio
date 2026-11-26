@@ -1,0 +1,38 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Escritório virtual · Venus Tecnologia</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#10101b;color:#f8f3ff;font:16px system-ui}main{max-width:1140px;margin:auto;padding:24px}header,nav{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}header{padding-bottom:18px;border-bottom:1px solid #383043}strong{letter-spacing:.12em}small,#state{color:#c6b8d6}h1{font:500 clamp(32px,5vw,55px) Georgia;margin:24px 0 12px}button{background:#231c31;border:1px solid #534360;color:inherit;border-radius:9px;padding:10px 16px;cursor:pointer;font:inherit}button[aria-pressed=true]{background:#63468c;border-color:#bf9be9}canvas{width:100%;display:block;background:#312943;border-radius:14px;margin:16px 0;image-rendering:pixelated}#rooms{display:flex;gap:8px;flex-wrap:wrap}#detail{min-height:24px}button:focus-visible{outline:3px solid white}@media(max-width:600px){main{padding:12px}button{padding:8px}canvas{min-height:190px;object-fit:contain}}
+figure{margin:18px 0 0}figure img{width:100%;height:auto;display:block;border-radius:10px}.arrival{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:18px 0}.arrival h1{margin:0}#enter{background:#7345a0;color:white}#back{margin-top:16px}</style><main><header><strong>◈ VENUS TECNOLOGIA</strong><small>Escritório virtual</small></header><section id="exterior"><figure><img src="/fachada.jpg" width="1672" height="941" alt="Sede virtual da Venus com fachada de concreto, brises escuros e hall envidraçado iluminado."></figure><div class="arrival"><h1>Escritório da Venus</h1><button id="enter">Entrar no escritório →</button></div></section><section hidden id="interior"><button id="back">← Voltar à fachada</button><h1>Por dentro da Venus</h1><nav><span id="state" role="status">Conectando…</span><button id="tour" aria-pressed="false">Visita demonstrativa</button></nav><canvas width="600" height="288" aria-label="Fachada aberta com três salas e avatares da equipe"></canvas><div id="rooms"></div><p id="detail" aria-live="polite"></p></section></main>
+<script>
+const c=document.querySelector('canvas'),g=c.getContext('2d'),el=id=>document.getElementById(id);
+function visit(inside){el('exterior').hidden=inside;el('interior').hidden=!inside;el(inside?'back':'enter').focus()}
+el('enter').onclick=()=>visit(true);el('back').onclick=()=>visit(false);
+let team=[],selected=0,demo=false,connected=false,t=0;
+const rect=(x,y,w,h,color)=>{g.fillStyle=color;g.fillRect(Math.round(x),Math.round(y),w,h)};
+function poly(points,color){g.fillStyle=color;g.beginPath();points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();g.fill()}
+function type(s,x,y,size,color){g.fillStyle=color;g.font='bold '+size+'px monospace';g.fillText(s,x,y)}
+function working(i){return demo?(Math.floor(t/4)+i)%3!==0:connected&&team[i]?.active}
+function scene(){
+const sky=g.createLinearGradient(0,0,0,270);sky.addColorStop(0,'#31294c');sky.addColorStop(.8,'#ce939d');g.fillStyle=sky;g.fillRect(0,0,600,288);
+rect(482,23,21,21,'#f3cbc4');
+for(let i=0;i<31;i++){let x=i*21,y=98-(i*47%57);rect(x,y,17+i%9,115,'#594762');for(let j=0;j<3;j++)rect(x+4,y+7+j*10,3,3,'#a9818e')}
+rect(0,213,600,75,'#494052');poly([[0,260],[600,229],[600,252],[0,283]],'#605466');
+poly([[47,86],[74,69],[553,69],[531,86]],'#99859f');poly([[531,86],[553,69],[553,208],[531,229]],'#463551');
+rect(47,86,484,143,'#292337');rect(51,90,476,30,'#443250');type('V E N U S',64,110,19,'#f6e8fe');type('T E C N O L O G I A',184,109,9,'#cfb7dd');rect(49,118,480,3,'#be8bfa');
+for(let i=0;i<3;i++){
+const x=55+i*158,col=['#ffb38e','#e5a5ee','#82d9db'][i],on=working(i);
+rect(x,127,149,85,['#aa898b','#9780a1','#79879c'][i]);rect(x,190,149,22,'#716372');rect(x+6,132,65,41,'#594d6b');rect(x+8,134,29,37,'#ae9eb6');rect(x+40,134,29,37,'#9d93ad');
+rect(x+79,135,60,26,'#51435c');type(['RECEPCAO','MARKETING','DEV LAB'][i],x+84,151,8,'#efe1eb');
+for(let j=0;j<2;j++){let px=x+10+6*j;rect(px,174-j*4,4,20,'#465c50');rect(px-4,177-j*4,10,5,'#748772')}rect(x+6,191,18,9,'#c99985');
+rect(x+49,177,56,6,'#503a50');rect(x+51,183,4,15,'#433746');rect(x+98,183,4,15,'#433746');rect(x+80,163,20,13,'#342d42');rect(x+82,165,16,8,on?'#a8ecd5':'#897e99');rect(x+88,175,4,3,'#46374e');
+let ax=x+(on?62:117),ay=on?171:179;
+rect(ax-5,ay-11,12,12,'#c68e75');rect(ax-6,ay-14,14,5,'#423348');rect(ax-6,ay,14,14,col);rect(ax+7,ay+4+(on?Math.floor(t*4)%2:0),on?9:3,4,'#dba48d');rect(ax-5,ay+14,4,8,'#393144');rect(ax+3,ay+14,4,8,'#393144');
+rect(x,211,149,3,selected===i?'#f5d4ff':'#68566f');
+}
+rect(42,229,490,5,'#79667d');rect(36,234,488,4,'#947d90');
+}
+function refresh(){el('state').textContent=demo?'Demonstração • atividade simulada':connected?'Conectado • '+team.filter(a=>a.active).length+' setores em atividade':'Sem conexão com o escritório';el('tour').setAttribute('aria-pressed',demo);el('detail').textContent=team[selected]?team[selected].room+' · '+team[selected].name+' — '+(working(selected)?'em atividade':connected||demo?'sem atividade recente':'estado indisponível'):'';scene()}
+function select(i){selected=i;[...el('rooms').children].forEach((b,j)=>b.setAttribute('aria-pressed',i===j));refresh()}
+async function poll(){try{const r=await fetch('/api/team');if(!r.ok)throw Error();team=await r.json();connected=true}catch{connected=false}if(!el('rooms').children.length)team.forEach((a,i)=>{let b=document.createElement('button');b.textContent=a.room;b.onclick=()=>select(i);el('rooms').append(b)});select(selected);setTimeout(poll,5000)}
+el('tour').onclick=()=>{demo=!demo;refresh()};c.onclick=e=>{const i=Math.floor(((e.clientX-c.getBoundingClientRect().left)/c.clientWidth*600-55)/158);if(team[i])select(i)};
+setInterval(()=>{if(!matchMedia('(prefers-reduced-motion: reduce)').matches)t+=.25;refresh()},250);poll()
+</script></html>
