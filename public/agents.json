@@ -331,5 +331,58 @@
   ],
   "notion": {
     "atividades_db": "4245db77-7484-8190-a446-f650dd2d85ae"
+  },
+  "reunioes": [
+    {
+      "id": "alinhamento",
+      "nome": "Alinhamento e estratégia",
+      "hora": "08:00",
+      "dias": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "participantes": [
+        "livia",
+        "rafael",
+        "caio"
+      ],
+      "foco": "Alinhar o dia: o que foi feito, o que falhou e por quê, recados da recepção, e estratégias para a Venus crescer."
+    },
+    {
+      "id": "passagem",
+      "nome": "Passagem de turno",
+      "hora": "18:30",
+      "dias": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "participantes": [
+        "rafael",
+        "bia"
+      ],
+      "foco": "Passar o bastão do dia para a noite: o que ficou pronto, o que ficou pendente, o que falhou e o que a noite deve priorizar."
+    }
+  ],
+  "empresa": {
+    "nome": "Venus Tecnologia",
+    "sobre": "Empresa de tecnologia de Mato Grosso, com sede em Cuiabá, que atende clientes em todo o Brasil.",
+    "oferece": [
+      "Infraestrutura e suporte de TI para empresas",
+      "Desenvolvimento de software e sistemas sob medida",
+      "Venora CRM, sistema próprio de gestão de relacionamento com clientes",
+      "Automação e agentes de IA para rotinas de empresas"
+    ],
+    "site": "venustecnologia.com.br",
+    "secretaria": "livia"
   }
 }

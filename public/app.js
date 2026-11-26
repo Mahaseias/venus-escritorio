@@ -2,8 +2,11 @@
 (()=>{
 const el=id=>document.getElementById(id);
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-function visit(inside){el('exterior').hidden=inside;el('interior').hidden=!inside;(inside?el('back'):el('enter')).focus();if(inside)resize()}
-el('enter').onclick=()=>visit(true);el('back').onclick=()=>visit(false);
+let place='fora'; // fora (fachada) · rec (recepção, aberta a visitantes) · dentro (escritório, só equipe)
+function go(p){place=p;el('exterior').hidden=p!=='fora';el('recepcao').hidden=p!=='rec';el('interior').hidden=p!=='dentro';
+  const R3=window.R3D;if(R3)p==='rec'?R3.start():R3.stop();
+  if(p==='rec')openReception();if(p==='dentro'){resize();el('back').focus()}if(p==='fora')el('enter').focus()}
+el('enter').onclick=()=>go('rec');el('back').onclick=()=>go('rec');el('rback').onclick=()=>go('fora');
 
 /* ---------- mapa (grade lógica; 1 casa = 16 px lógicos = 0,5 unidade no 3D) ---------- */
 const T=16,COLS=40,ROWS=24,W=COLS*T,H=ROWS*T;
@@ -69,6 +72,7 @@ const IDLE=[
   {x:3,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:3.8*T,fy:19.7*T},{x:4,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:4.5*T,fy:19.7*T},{x:5,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:5.2*T,fy:19.7*T},
   {x:9,y:20,d:'r',ic:'papo'},{x:10,y:20,d:'l',ic:'papo'},{x:16,y:21,d:'r',ic:'papo'},{x:17,y:21,d:'l',ic:'papo'}
 ];
+const MEET=[[29.1,18.3,'d'],[30.9,18.3,'d'],[29.1,21.5,'u'],[30.9,21.5,'u'],[27.2,18.3,'d'],[32.8,18.3,'d'],[27.2,21.5,'u'],[32.8,21.5,'u']].map(([x,y,d])=>({x:Math.floor(x),y:Math.floor(y),d,sit:1,sh:SH.chair,ic:'papo',fx:x*T,fy:y*T}));
 const spotPos=s=>({x:s.fx??s.x*T+8,y:s.fy??s.y*T+8});
 const noite=()=>{if(/[?&]noite/.test(location.search))return true;if(/[?&]dia/.test(location.search))return false;const h=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Cuiaba',hour:'2-digit',hourCycle:'h23'}).format(new Date()));return h<6||h>=18};
 let NIGHT=noite(),nightAt=0;
@@ -112,7 +116,7 @@ const primeiro=n=>n.split(' ')[0];
 function deskIdx(f){return funcs.filter(x=>x.setor===f.setor).indexOf(f)%3}
 function present(f){return live()?f.emTurno:true}
 function working(f){return live()&&f.emTurno&&f.trabalhando}
-function statusOf(f){if(!live())return['off','Offline'];if(!f.emTurno)return['off','Fora do turno'];return f.trabalhando?['on','Trabalhando']:['idle','Em pausa']}
+function statusOf(f){if(!live())return['off','Offline'];if(f.emReuniao!=null)return['on','Em reunião'];if(!f.emTurno)return['off','Fora do turno'];return f.trabalhando?['on','Trabalhando']:['idle','Em pausa']}
 function shade(hex,f){const n=parseInt(hex.slice(1),16);let r=n>>16,g2=n>>8&255,b=n&255;r=Math.min(255,r*f)|0;g2=Math.min(255,g2*f)|0;b=Math.min(255,b*f)|0;return'#'+((1<<24)|(r<<16)|(g2<<8)|b).toString(16).slice(1)}
 
 /* ---------- personagens ---------- */
@@ -125,7 +129,8 @@ function makeChar(f,mode){
   const c={id:f.id,setor:f.setor,desk:deskIdx(f),idx:i,name:primeiro(f.nome),color:corSetor(f.setor),hair:ap.cabelo||'#2b1d17',skin:ap.pele||'#f1c7a5',
     x:ENTRY.x*T+8,y:ENTRY.y*T+8,model:f.modelo,path:[],dir:'r',sit:false,spot:null,final:null,dist:0,leaving:false,nextIdle:0,working:false,arrivedAt:performance.now()};
   if(mode==='place'){
-    if(working(f)){const s=seatOf(c);if(s){c.x=s.x;c.y=s.y;c.working=true;c.sit=true;c.dir='u'}}
+    if(f.emReuniao!=null&&MEET[f.emReuniao]){const s=MEET[f.emReuniao];c.meet=f.emReuniao;c.mseat=s;const p=spotPos(s);c.x=p.x;c.y=p.y;c.sit=true;c.dir=s.d}
+    else if(working(f)){const s=seatOf(c);if(s){c.x=s.x;c.y=s.y;c.working=true;c.sit=true;c.dir='u'}}
     else{const s=freeSpot();if(s){c.spot=s;s.by=c;const p=spotPos(s);c.x=p.x;c.y=p.y;c.sit=!!s.sit;c.dir=s.d}}
   }
   return c;
@@ -134,13 +139,16 @@ function goTile(c,tx,ty,final){const[sx,sy]=tileOf(c);c.path=bfs(sx,sy,tx,ty);c.
 function arrive(c){
   c.arrivedAt=performance.now();
   if(c.leaving){chars=chars.filter(o=>o!==c);return}
-  if(c.working){c.sit=true;c.dir='u'}
+  if(c.mseat){c.sit=true;c.dir=c.mseat.d}
+  else if(c.working){c.sit=true;c.dir='u'}
   else if(c.spot){c.sit=!!c.spot.sit;c.dir=c.spot.d}
 }
 function toIdle(c,now){const s=freeSpot();release(c);if(s){c.spot=s;s.by=c;goTile(c,s.x,s.y,spotPos(s))}c.nextIdle=now+20000+Math.random()*25000}
 function plan(c,now){
   const f=funcById(c.id);if(!f||c.leaving)return;
   if(!present(f)){c.leaving=true;c.working=false;release(c);goTile(c,ENTRY.x,ENTRY.y,null);return}
+  if(f.emReuniao!=null&&MEET[f.emReuniao]){if(c.meet!==f.emReuniao){c.meet=f.emReuniao;c.working=false;release(c);const s=MEET[f.emReuniao];c.mseat=s;goTile(c,s.x,s.y,spotPos(s))}return}
+  if(c.mseat){c.meet=null;c.mseat=null;c.sit=false;c.nextIdle=0}
   if(working(f)){
     if(!c.working){c.working=true;release(c);const s=seatOf(c);if(s)goTile(c,s.tx,s.ty,{x:s.x,y:s.y})}
   }else if(c.working||(!c.spot&&!c.path.length&&!c.final))toIdle(c,now);
@@ -177,7 +185,7 @@ function frame(now){
     if(d<=sp){c.x=target.x;c.y=target.y;c.dist+=d;if(target.tile){c.path.shift();if(!c.path.length&&!c.final)arrive(c)}else{c.final=null;arrive(c)}}
     else{c.x+=dx/d*sp;c.y+=dy/d*sp;c.dist+=sp}
   });
-  draw(now);
+  if(place==='dentro')draw(now);
   requestAnimationFrame(frame);
 }
 function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
@@ -187,7 +195,7 @@ function draw(t){
   if(!V||!V.ready){g.fillStyle='#a59cb8';g.font='500 14px system-ui,sans-serif';g.fillText(V&&V.error?'Não foi possível carregar o 3D neste navegador.':'Carregando o escritório 3D…',CW/2,CH/2);if(!V)return}
   if(t-nightAt>5000){NIGHT=noite();nightAt=t}
   const on=[];chars.forEach(c=>{if(c.working&&c.sit&&!c.path.length&&!c.final)on.push(roomIdx(c.setor)+':'+c.desk)});
-  V.update({night:NIGHT,screens:on,selected,chars:chars.map(c=>({id:c.id,model:c.model,x:c.x/32,z:c.y/32,dir:c.dir,moving:c.path.length>0||!!c.final,sit:c.sit,sh:c.working?SH.chair:(c.spot&&c.spot.sh)||SH.chair}))});
+  V.update({night:NIGHT,screens:on,selected,chars:chars.map(c=>({id:c.id,model:c.model,x:c.x/32,z:c.y/32,dir:c.dir,moving:c.path.length>0||!!c.final,sit:c.sit,sh:c.working||c.mseat?SH.chair:(c.spot&&c.spot.sh)||SH.chair}))});
   if(!V.ready)return;
   // placas das salas
   const plate=(txt,x,y)=>{const p=V.project(x/2,.75,y/2);if(p.behind)return;g.font='700 10px system-ui,sans-serif';const w=g.measureText(txt).width+16,h=17;
@@ -198,8 +206,8 @@ function draw(t){
   chars.forEach(c=>{
     const p=V.project(c.x/32,c.sit?.95:1.08,c.y/32);if(p.behind)return;
     const idle=!c.path.length&&!c.final&&live()&&!c.leaving;
-    if(idle&&((c.working&&c.sit)||(c.spot&&t-c.arrivedAt<6000+((c.idx*1300)%4000)))){
-      g.save();g.translate(p.x+4,p.y+34);g.scale(1.6,1.6);ctx=g;bubble(0,0,c.working?'dots':c.spot.ic,t);g.restore();
+    if(idle&&((c.mseat&&c.sit&&Math.floor(t/2600+c.idx)%3===0)||(c.working&&c.sit)||(c.spot&&t-c.arrivedAt<6000+((c.idx*1300)%4000)))){
+      g.save();g.translate(p.x+4,p.y+34);g.scale(1.6,1.6);ctx=g;bubble(0,0,c.mseat?'papo':c.working?'dots':c.spot.ic,t);g.restore();
     }
     g.font='600 11px system-ui,sans-serif';
     tags.push({c,w:g.measureText(c.name).width+18,h:17,x:p.x,y:p.y-10});
@@ -211,7 +219,7 @@ function draw(t){
     const sel=selected===c.id;
     g.fillStyle=sel?'rgba(74,56,112,.95)':'rgba(20,17,31,.85)';roundRect(x-w/2,y-h/2,w,h,h/2);g.fill();
     g.strokeStyle=sel?'#c9a6f2':'rgba(255,255,255,.14)';g.lineWidth=1;g.stroke();
-    g.fillStyle=!live()||c.leaving?'#6b6480':c.working?'#4ade80':'#fbbf24';g.beginPath();g.arc(x-w/2+8,y,3,0,7);g.fill();
+    g.fillStyle=!live()||c.leaving?'#6b6480':c.working||c.mseat?'#4ade80':'#fbbf24';g.beginPath();g.arc(x-w/2+8,y,3,0,7);g.fill();
     g.fillStyle='#f3effa';g.textAlign='left';g.fillText(c.name,x-w/2+13,y+.5);g.textAlign='center';
   });
 }
@@ -222,7 +230,7 @@ function avatar(f,scale=3){
   if(src){const im=new Image();im.src=src;im.className='hdav';im.alt='';im.style.height=26*scale+'px';im.style.width=26*scale*.8+'px';return im}
   return h('div',{class:'inic',style:`width:${20*scale}px;height:${20*scale}px;background:${corSetor(f.setor)};font-size:${7*scale}px`},primeiro(f.nome)[0]);
 }
-addEventListener('v3d-ready',()=>{resize();renderList();if(selected&&!chatFor)openFicha(selected)});
+addEventListener('v3d-ready',()=>{resize();renderList();if(place==='rec'){const t=el('rpanel').querySelector('textarea,input');if(!t||(!t.value&&document.activeElement!==t))renderReception()}if(selected&&!chatFor)openFicha(selected)});
 
 /* ---------- interação no mapa ---------- */
 const glc=el('gl');let downAt=null;
@@ -255,9 +263,9 @@ function renderList(){
 }
 
 /* ---------- ficha do funcionário ---------- */
-let tasksCache=[],tasksFor=null;
+let tasksCache=[],tasksFor=null,panel=null;
 function openFicha(id){
-  chatFor=null;selected=id;renderList();
+  chatFor=null;panel=null;selected=id;renderList();
   const box=el('ficha');
   if(!id){box.classList.remove('chat');box.hidden=true;document.querySelector('.stage').classList.remove('withf');resize();return}
   const f=funcById(id);if(!f)return;
@@ -407,19 +415,127 @@ async function openChat(id){
   try{const r=await fetch('/api/chat?func='+encodeURIComponent(id),{cache:'no-store'});const j=await r.json();if(chatFor!==id)return;chatMsgs=j.mensagens||[];if(!j.ativo)err.textContent='A conversa ainda não está ligada: falta a chave da API no Render.';renderChat()}catch{}
 }
 
+/* ---------- recepção: a secretária atende visitantes ---------- */
+let rStage='inicio',rMsgs=[],rBusy=false,rLoaded=false,rErr='';
+addEventListener('r3d-ready',()=>{if(rec&&window.R3D)window.R3D.setModel(rec.modelo);if(place==='rec')window.R3D.start()});
+function openReception(){
+  if(window.R3D&&rec)window.R3D.setModel(rec.modelo);
+  if(!rLoaded){rLoaded=true;fetch('/api/recepcao',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j.mensagens&&j.mensagens.length){rMsgs=j.mensagens;rStage='chat'}renderReception()}).catch(()=>{})}
+  renderReception();
+}
+function renderReception(){
+  const box=el('rpanel'),s=rec||{nome:'Lívia',cargo:'Secretária',setor:'secretaria'},nome=primeiro(s.nome);
+  el('rtagn').textContent=nome+' · recepção';
+  const msgs=h('div',{class:'cmsgs','aria-live':'polite'});
+  const fala=t=>{const b=h('div',{class:'msg ag'});b.append(mdLite(t));msgs.append(b);return b};
+  box.replaceChildren(h('div',{class:'chead'},h('div',{class:'av'},avatar(s,1.45)),h('div',{class:'who'},h('b',{},s.nome),h('span',{},'Recepção da Venus · assistente de IA'))),msgs);
+  if(me){
+    fala(`Oi, ${primeiro(me.nome)}! Que bom te ver. O pessoal está lá dentro.`);
+    msgs.append(h('div',{class:'choice'},h('button',{onclick:()=>go('dentro')},'Entrar no escritório →',h('span',{},'Ver a equipe, as reuniões e os recados'))));
+    return;
+  }
+  fala(`Olá! Seja bem-vindo à Venus Tecnologia. Eu sou a ${nome}, da recepção. Você está nos visitando ou faz parte da equipe?`);
+  if(rStage==='inicio'){
+    msgs.append(h('div',{class:'choice'},
+      h('button',{onclick:()=>{rStage='chat';renderReception()}},'Sou visitante',h('span',{},'Quero conhecer a Venus ou falar com a equipe')),
+      h('button',{onclick:openLogin},'Sou membro da Venus',h('span',{},'Entrar no escritório com meu acesso'))));
+    return;
+  }
+  fala('Que bom ter você aqui! Me conta: o que você procura? Posso tirar dúvidas e anotar seu recado para a equipe.');
+  rMsgs.forEach(m=>{if(m.de==='eu')msgs.append(h('div',{class:'msg eu'},m.texto));else{const b=fala(m.texto);if(m.anotou)b.append(h('div',{class:'okchip'},'Recado anotado para a equipe da Venus'))}});
+  if(rBusy)msgs.append(h('div',{class:'msg ag typing'},h('i',{}),h('i',{}),h('i',{})));
+  const err=h('p',{class:'cerr',role:'alert'},rErr);
+  if(rStage==='form'||rStage==='enviado'){
+    if(rStage==='enviado'){fala('Recado anotado! A equipe da Venus retorna em horário comercial. Obrigada pela visita.');box.append(h('p',{class:'rfoot'},h('button',{class:'ghost sm',onclick:()=>{rStage='chat';rErr='';renderReception()}},'Voltar para a conversa')))}
+    else{
+      const n=h('input',{placeholder:'Seu nome',maxlength:80,required:true,autocomplete:'name'}),c=h('input',{placeholder:'WhatsApp ou e-mail',maxlength:120,required:true}),m=h('textarea',{placeholder:'Como a Venus pode ajudar?',rows:3,maxlength:1500,required:true}),b=h('button',{class:'cta sm'},'Deixar recado');
+      const f=h('form',{class:'rform'},n,c,m,h('div',{class:'prow'},h('button',{type:'button',class:'ghost sm',onclick:()=>{rStage='chat';rErr='';renderReception()}},'← Conversa'),b));
+      f.onsubmit=async e=>{e.preventDefault();b.disabled=true;try{await api('/api/recepcao/recado',{nome:n.value,contato:c.value,mensagem:m.value});rStage='enviado';rErr=''}catch(ex){rErr=ex.message}renderReception()};
+      box.append(err,f);
+    }
+  }else{
+    const ta=h('textarea',{rows:1,maxlength:800,placeholder:`Escreva para ${nome}…`}),send=h('button',{class:'cta sm'},'Enviar');
+    const f=h('form',{class:'cform'},ta,send);
+    f.onsubmit=async e=>{e.preventDefault();const txt=ta.value.trim();if(!txt||rBusy)return;rErr='';rMsgs.push({de:'eu',texto:txt});rBusy=true;if(window.R3D)window.R3D.talk(true);renderReception();
+      try{const r=await fetch('/api/recepcao/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mensagem:txt})});const j=await r.json().catch(()=>({}));
+        if(!r.ok){rMsgs.pop();rErr=j.erro||'Não consegui responder agora.';if(j.formulario)rStage='form'}else rMsgs.push(j)}
+      catch{rMsgs.pop();rErr='Sem conexão. Tente de novo.'}
+      rBusy=false;if(window.R3D)window.R3D.talk(false);renderReception();const t2=el('rpanel').querySelector('.cform textarea');if(t2){if(rErr&&rStage==='chat')t2.value=txt;t2.focus()}};
+    ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();f.requestSubmit()}};
+    ta.oninput=()=>{ta.style.height='';ta.style.height=Math.min(120,ta.scrollHeight)+'px'};
+    box.append(err,f);
+  }
+  box.append(h('p',{class:'rfoot'},'Atendimento por IA. Seus dados são usados só para a Venus retornar o contato. ',rStage==='chat'?h('button',{class:'ghost sm',onclick:()=>{rStage='form';rErr='';renderReception()}},'Prefiro deixar um recado'):''));
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+/* ---------- código de ética ---------- */
+async function openEtica(){
+  const b=el('eticab');b.replaceChildren(h('p',{class:'muted'},'Carregando…'));el('etica').showModal();
+  try{const j=await(await fetch('/api/etica')).json();b.replaceChildren();let ul=null;
+    j.texto.split('\n').forEach(l=>{l=l.trim();if(!l){ul=null;return}
+      if(l.startsWith('- ')){if(!ul){ul=h('ul',{});b.append(ul)}ul.append(h('li',{},l.slice(2)));return}ul=null;
+      b.append(l.startsWith('## ')?h('h4',{},l.slice(3)):l.startsWith('# ')?h('h3',{},l.slice(2)):h('p',{},l))})}
+  catch{b.replaceChildren(h('p',{},'Não foi possível carregar agora.'))}
+}
+el('retica').onclick=openEtica;el('betica').onclick=openEtica;el('eclose').onclick=()=>el('etica').close();
+
+/* ---------- reuniões e recados (só equipe) ---------- */
+function showPanel(kind,title,sub){
+  selected=null;chatFor=null;panel=kind;renderList();
+  const box=el('ficha'),was=box.hidden;box.hidden=false;box.classList.remove('chat');document.querySelector('.stage').classList.add('withf');if(was)resize();
+  const body=h('div',{});
+  box.replaceChildren(h('div',{class:'fhead',style:'grid-template-columns:1fr auto'},h('div',{},h('h3',{},title),h('p',{class:'muted small'},sub)),h('button',{class:'x','aria-label':'Fechar',onclick:()=>openFicha(null)},'×')),body);
+  return body;
+}
+const nomeDe=id=>{const f=funcById(id);return f?primeiro(f.nome):id};
+const CERT={confirmada:'causa confirmada',hipotese:'hipótese',desconhecida:'causa desconhecida'};
+async function openReunioes(){
+  const body=showPanel('reunioes','Reuniões da equipe','Alinhamento e estratégia. Nada muda sem a sua aprovação.');
+  body.append(h('p',{class:'muted small'},'Carregando…'));
+  let j;try{const r=await fetch('/api/reunioes',{cache:'no-store'});if(!r.ok)throw 0;j=await r.json()}catch{if(panel==='reunioes')body.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar.'));return}
+  if(panel!=='reunioes')return;body.replaceChildren();
+  const msg=h('p',{class:'muted small'},j.ia?(j.agora?'Reunião em andamento, a ata aparece aqui em instantes…':''):'Falta a chave da API para as reuniões acontecerem.');
+  body.append(h('div',{class:'sub2'},'Agenda diária'));
+  j.agenda.forEach(a=>{const b=h('button',{class:'ghost sm',disabled:!j.ia||!!j.agora},'Convocar agora');
+    b.onclick=async()=>{b.disabled=true;msg.textContent='Reunindo a equipe na sala… leva até um minuto.';poll(true);try{await api('/api/reunioes/convocar',{tipo:a.id});log(`${me.nome} convocou a reunião: ${a.nome}`)}catch(e){alert(e.message)}poll(true);if(panel==='reunioes')openReunioes()};
+    body.append(h('div',{class:'card'},h('div',{class:'prow',style:'margin:0'},h('div',{},h('h5',{},`${a.hora} · ${a.nome}`),h('span',{class:'muted small'},a.participantes.map(nomeDe).join(', '))),b)))});
+  body.append(msg,h('div',{class:'sub2'},'Atas'));
+  if(!j.reunioes.length)body.append(h('p',{class:'muted small'},'Nenhuma reunião registrada ainda.'));
+  j.reunioes.forEach(r=>{
+    const card=h('div',{class:'card'},h('h5',{},r.nome),h('span',{class:'muted small'},fmtDia(r.inicio)+' · '+r.participantes.map(nomeDe).join(', ')+(r.convocada?' · convocada por '+r.convocada:'')),h('p',{},r.resumo));
+    r.avisos.forEach(a=>card.append(h('div',{class:'aviso'+(a.certeza==='confirmada'?' c':'')},h('b',{},a.titulo),h('span',{class:'muted'},` · ${nomeDe(a.responsavel)} · ${CERT[a.certeza]||a.certeza}`),h('div',{},a.o_que_houve),h('div',{},h('b',{},'Causa: '),a.causa),h('div',{},h('b',{},'Próximo passo: '),a.proximo_passo))));
+    r.propostas.forEach(p=>{
+      const row=h('div',{class:'prow'});
+      if(p.status==='pendente'){const dec=acao=>async()=>{try{await api('/api/propostas',{reuniao:r.id,proposta:p.id,acao});log(`${me.nome} ${acao==='aprovar'?'aprovou':'recusou'}: ${p.titulo}`);poll(true);openReunioes()}catch(e){alert(e.message)}};
+        row.append(h('button',{class:'ghost sm',onclick:dec('recusar')},'Recusar'),h('button',{class:'cta sm',onclick:dec('aprovar')},`Aprovar · vai para ${nomeDe(p.func)}`))}
+      else row.append(h('span',{class:'tag '+(p.status==='aprovada'?'d':'c')},(p.status==='aprovada'?'Aprovada':'Recusada')+(p.por?' por '+p.por:'')));
+      card.append(h('div',{class:'prop'},h('b',{},p.titulo),h('span',{class:'muted'},' · proposta de '+nomeDe(p.func)),h('div',{style:'white-space:pre-wrap;margin-top:4px'},p.descricao),h('div',{class:'muted small',style:'margin-top:4px'},'Por quê: '+p.motivo),row))});
+    if(r.falas.length)card.append(h('details',{class:'more'},h('summary',{},'Ver o que cada um falou'),r.falas.map(f=>h('div',{class:'fala'},h('b',{},nomeDe(f.func)),h('span',{},f.texto)))));
+    body.append(card)});
+}
+async function openRecados(){
+  const body=showPanel('recados','Recados da recepção','O que os visitantes deixaram com a Lívia.');
+  let list;try{const r=await fetch('/api/recados',{cache:'no-store'});if(!r.ok)throw 0;list=await r.json()}catch{body.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar.'));return}
+  if(panel!=='recados')return;body.replaceChildren();
+  if(!list.length)body.append(h('p',{class:'muted small',style:'margin-top:14px'},'Nenhum recado ainda.'));
+  list.forEach(r=>{const b=r.visto?h('span',{class:'tag c'},'Visto'+(r.vistoPor?' por '+r.vistoPor:'')):h('button',{class:'cta sm',onclick:async()=>{try{await api('/api/recados/visto',{id:r.id});poll(true);openRecados()}catch(e){alert(e.message)}}},'Marcar como visto');
+    body.append(h('div',{class:'card',style:'margin-top:10px'},h('h5',{},r.nome+(r.empresa?' · '+r.empresa:'')),h('span',{class:'muted small'},fmtDia(r.t)+' · '+(r.origem==='formulario'?'formulário':'conversa com a Lívia')),h('p',{},h('b',{},'Contato: '),r.contato),h('p',{},h('b',{},'Assunto: '),r.assunto),r.resumo?h('p',{style:'white-space:pre-wrap'},r.resumo):'',h('div',{class:'prow'},h('span',{}),b)))});
+}
+el('breun').onclick=()=>panel==='reunioes'?openFicha(null):openReunioes();el('brec').onclick=()=>panel==='recados'?openFicha(null):openRecados();
+
 /* ---------- login ---------- */
 function openLogin(){el('lerr').textContent='';el('login').showModal();el('lemail').focus()}
 el('lform').onsubmit=async e=>{
   e.preventDefault();el('lerr').textContent='';
-  try{await api('/api/login',{email:el('lemail').value,senha:el('lsenha').value});el('lsenha').value='';el('login').close();await poll(true);if(selected)openFicha(selected)}
+  try{await api('/api/login',{email:el('lemail').value,senha:el('lsenha').value});el('lsenha').value='';el('login').close();await poll(true);if(me)go('dentro');if(selected)openFicha(selected)}
   catch(err){el('lerr').textContent=err.message}
 };
 el('lcancel').onclick=()=>el('login').close();
 function renderWho(){
   const w=el('who');w.replaceChildren();
   if(me){w.append(h('span',{class:'pill'},h('span',{class:'dot '+(worker&&worker.online?'on':'')}),worker&&worker.online?'Worker online':'Worker offline'),
-    h('span',{class:'pill'},me.nome),h('button',{class:'ghost',onclick:async()=>{await api('/api/logout',{});me=null;tasksCache=[];await poll(true);if(selected)openFicha(selected)}},'Sair'))}
-  else w.append(h('button',{class:'ghost',onclick:openLogin},'Entrar'));
+    h('span',{class:'pill'},me.nome),h('button',{class:'ghost',onclick:async()=>{await api('/api/logout',{});me=null;tasksCache=[];openFicha(null);await poll(true);go('rec')}},'Sair'))}
 }
 
 /* ---------- atividade ---------- */
@@ -446,18 +562,22 @@ function apply(list){
   prev=Object.fromEntries(list.map(f=>[f.id,{emTurno:f.emTurno,trabalhando:f.trabalhando}]));
   funcs=list;sync();renderList();updateFicha(false);setConn();
 }
-let real=null;
+let real=null,rec=null,reuniaoOn=false;
 async function poll(once){
   try{const r=await fetch('/api/office',{cache:'no-store'});if(!r.ok)throw 0;real=await r.json();
     if(!connected&&!firstPoll)log('Conexão com o escritório restabelecida');connected=true;
-    setores=real.setores;
+    setores=real.setores;rec=real.recepcao||rec;if(rec&&window.R3D)window.R3D.setModel(rec.modelo);
     const wasMe=!!me;me=real.logado;worker=real.worker||null;renderWho();
+    if(!me&&place==='dentro')go('rec');
+    if(wasMe!==!!me&&place==='rec')openReception();
+    const pd=real.pendencias||{};[['bprop',pd.propostas],['brecn',pd.recados]].forEach(([id,n])=>{el(id).hidden=!n;el(id).textContent=n||''});
+    if(real.reuniao&&!reuniaoOn)log(`Reunião em andamento: ${real.reuniao.nome}`);reuniaoOn=!!real.reuniao;
     if(wasMe!==!!me&&selected)renderTaskBox(funcById(selected)||{});
   }catch{if(connected)log('Conexão perdida');connected=false}
   if(firstPoll){firstPoll=false;log(connected?'Escritório aberto · acompanhando ao vivo':'Sem conexão com o servidor')}
   if(!demo&&real)apply(real.funcionarios);
   if(me&&selected&&!demo)loadTasks(selected);
-  if(!once)setTimeout(poll,5000);
+  if(!once)setTimeout(poll,me?5000:20000);
 }
 
 /* ---------- modo demonstração ---------- */

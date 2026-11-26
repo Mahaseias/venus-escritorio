@@ -133,6 +133,40 @@ li.open .tbody{display:block}
 .agenda .trow{grid-template-columns:42px 1fr auto}
 .hr{font-variant-numeric:tabular-nums;color:var(--accent2)!important;font-weight:600}
 
+/* Recepção */
+#recepcao{position:relative;height:100vh;min-height:520px;overflow:hidden;background:#0c0a13}
+#rgl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none;outline:0}
+#rtag{position:absolute;left:0;top:0;pointer-events:none;background:rgba(20,17,31,.85);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:3px 11px;font-size:12px;font-weight:600;white-space:nowrap}
+#rtag i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px;box-shadow:0 0 8px var(--ok)}
+.rtop{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:14px 20px;background:linear-gradient(180deg,rgba(12,10,19,.85),rgba(12,10,19,0));pointer-events:none}
+.rtop>*{pointer-events:auto}.rtop .brand{margin-right:auto}
+#rpanel{position:absolute;top:64px;right:16px;bottom:16px;width:min(400px,calc(100% - 32px));background:rgba(22,19,34,.94);border:1px solid #3a3156;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.55);backdrop-filter:blur(10px);display:flex;flex-direction:column;overflow:hidden}
+#rpanel .chead .who span{display:block}
+.choice{display:grid;gap:8px;margin:4px 0 2px;align-self:stretch}
+.choice button{text-align:left;background:#241e38;border:1px solid #453a66;border-radius:12px;padding:11px 14px;font-weight:600}
+.choice button:hover{border-color:var(--accent);background:#2c2446}
+.choice button span{display:block;font-weight:400;font-size:12px;color:var(--muted);margin-top:2px}
+.rform{display:grid;gap:8px;padding:12px;border-top:1px solid var(--line)}
+.rform input,.rform textarea{width:100%;background:#120f1c;border:1px solid #3a3156;border-radius:10px;color:var(--text);padding:9px 12px;font:inherit}
+.rfoot{padding:0 14px 10px;font-size:11px;color:var(--muted);margin:0}
+.okchip{margin-top:8px;font-size:12px;background:#14432a;color:#7ff0a8;border-radius:8px;padding:5px 9px}
+#rhint{position:absolute;left:16px;bottom:14px;font-size:11.5px;color:var(--muted);background:rgba(20,17,31,.6);padding:4px 10px;border-radius:999px;pointer-events:none}
+@media(max-width:860px){#rpanel{top:auto;left:8px;right:8px;bottom:8px;width:auto;height:52vh}#rhint{display:none}.rtop{padding:10px 12px;gap:6px}.rtop .brand span{display:none}.rtop .ghost{white-space:nowrap;padding:6px 9px;font-size:12px}}
+
+/* Reuniões, recados, ética */
+.badge{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:0 5px;margin-left:6px}
+.card{border:1px solid #2f2945;border-radius:12px;padding:12px;margin-bottom:10px;background:#1a1629}
+.card h5{margin:0 0 2px;font-size:14px}.card p{margin:6px 0 0;color:#ddd5ea}
+.fala{display:grid;grid-template-columns:auto 1fr;gap:8px;margin-top:8px;font-size:13px}.fala b{color:var(--accent2)}
+.aviso{border-left:3px solid var(--warn);background:#2a2415;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12.5px}
+.aviso.c{border-color:#60a5fa;background:#16233a}
+.prop{border:1px solid #453a66;border-radius:10px;padding:10px;margin-top:8px;background:#211b33;font-size:13px}
+.prop .prow{justify-content:flex-end;flex-wrap:wrap}.prop .cta{white-space:nowrap}
+.sub2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:14px 0 2px}
+details.more summary{cursor:pointer;color:var(--accent2);font-size:12.5px;margin-top:8px}
+#etica{width:min(720px,94vw);max-height:86vh;overflow:auto}
+#etica h3{font:600 22px Georgia,serif;margin:0 0 6px}#etica h4{margin:16px 0 4px;color:var(--accent2);font-size:14px}#etica ul{margin:4px 0;padding-left:20px}#etica li{margin:3px 0}#etica p{margin:6px 0;color:#ddd5ea}
+
 /* Login */
 dialog{background:var(--panel);color:var(--text);border:1px solid #3a3156;border-radius:14px;padding:22px;width:min(360px,92vw);box-shadow:0 30px 80px rgba(0,0,0,.6)}
 dialog::backdrop{background:rgba(8,6,14,.65);backdrop-filter:blur(3px)}
@@ -152,9 +186,21 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
   <div class="hero">
     <div class="brand"><i></i>VENUS TECNOLOGIA</div>
     <h1>Escritório da Venus</h1>
-    <p>Acompanhe ao vivo a equipe de agentes de IA da Venus trabalhando: recepção, marketing e desenvolvimento.</p>
-    <button class="cta" id="enter">Entrar no escritório →</button>
+    <p>Entre na recepção e fale com a Lívia. Ela tira dúvidas, anota seu recado e avisa a equipe da Venus.</p>
+    <button class="cta" id="enter">Entrar na recepção →</button>
   </div>
+</section>
+
+<section id="recepcao" hidden>
+  <canvas id="rgl" aria-label="Recepção da Venus em 3D: arraste para olhar em volta"></canvas>
+  <div id="rtag" hidden><i></i><span id="rtagn">Lívia</span></div>
+  <div class="rtop">
+    <div class="brand"><i></i>VENUS TECNOLOGIA <span class="muted" style="letter-spacing:.08em;font-weight:500">· Recepção</span></div>
+    <button class="ghost" id="retica">Código de ética</button>
+    <button class="ghost" id="rback">← Fachada</button>
+  </div>
+  <div id="rhint">Arraste para olhar em volta</div>
+  <div id="rpanel" role="dialog" aria-label="Atendimento da recepção"></div>
 </section>
 
 <section id="interior" hidden>
@@ -163,9 +209,12 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
     <span class="pill" role="status" id="conn"><span class="dot"></span>Conectando…</span>
     <span class="pill" id="summary">—</span>
     <span class="pill" id="clock">--:--</span>
+    <button class="ghost" id="breun">Reuniões<span class="badge" id="bprop" hidden></span></button>
+    <button class="ghost" id="brec">Recados<span class="badge" id="brecn" hidden></span></button>
+    <button class="ghost" id="betica">Ética</button>
     <button class="ghost" id="tour" aria-pressed="false">Modo demonstração</button>
     <span id="who"></span>
-    <button class="ghost" id="back">← Fachada</button>
+    <button class="ghost" id="back">← Recepção</button>
   </div>
   <div class="layout">
     <aside>
@@ -173,7 +222,7 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
       <ul id="agents" role="listbox" aria-label="Funcionários"></ul>
       <h2>Atividade</h2>
       <ul id="events" aria-live="polite"></ul>
-      <div class="foot">Clique em um funcionário para ver o perfil. Visitantes veem só o status; tarefas e detalhes ficam visíveis para a equipe autorizada.</div>
+      <div class="foot">Clique em um funcionário para ver o perfil, a agenda e conversar. Área restrita à equipe da Venus.</div>
     </aside>
     <div class="stage">
       <div id="wrap">
@@ -197,7 +246,10 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
   </form>
 </dialog>
 
+<dialog id="etica" aria-label="Código de ética"><div id="eticab"></div><div class="drow"><button class="cta sm" id="eclose">Fechar</button></div></dialog>
+
 <script src="/app.js"></script>
+<script type="module" src="/recepcao3d.js"></script>
 <script type="module" src="/office3d.js"></script>
 </body>
 </html>

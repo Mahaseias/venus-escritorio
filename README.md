@@ -123,3 +123,12 @@ O hook envia só o setor, o funcionário, um identificador anônimo da sessão e
 ```bash
 OFFICE_TOKEN=teste node server.mjs   # http://localhost:3000
 ```
+
+## Recepção, reuniões e código de ética
+
+- **Recepção (pública):** visitantes só entram na recepção e conversam com a secretária (`empresa.secretaria` em `public/agents.json`). O escritório, a equipe, as reuniões e os recados exigem login.
+  - Modelo: `VISITOR_MODEL` (padrão `claude-haiku-5-5`). Limite diário somando todos os visitantes: `VISITOR_DAILY_LIMIT` (padrão 300). Passou do limite, a recepção oferece o formulário de recado, que não usa a API.
+  - O que a secretária sabe sobre a empresa está em `empresa` no `public/agents.json`. Ela não inventa preços nem prazos.
+- **Reuniões:** definidas em `reunioes` no `public/agents.json` (horário de Cuiabá). A ata traz o que falhou, a causa (confirmada ou hipótese) e propostas. Proposta só vira tarefa depois de aprovada por alguém logado.
+- **Código de ética:** `public/etica.md`. É injetado nas instruções de todos os agentes (conversa, tarefas, reuniões e recepção).
+- **Notion:** reuniões e recados são gravados na base de atividades (coluna `Dados`), para não se perderem quando o servidor reinicia.
