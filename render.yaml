@@ -9,3 +9,7 @@ services:
     envVars:
       - key: OFFICE_TOKEN
         generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: OFFICE_USERS
+        sync: false

@@ -1,0 +1,5 @@
+# contém o token do escritório — nunca versionar
+worker/config.json
+worker/areas/
+state.json
+node_modules/

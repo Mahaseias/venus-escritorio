@@ -20,7 +20,11 @@ def main():
         return
     active = kind in ("UserPromptSubmit", "PreToolUse", "SubagentStart")
     key = hashlib.sha256(identity.encode()).hexdigest()
-    data = json.dumps(dict(role=role, session=key, active=active)).encode()
+    payload = dict(role=role, session=key, active=active)
+    staff = os.getenv("VENUS_STAFF")  # definido pelo worker: id do funcionário (ex.: "rafael")
+    if staff:
+        payload["staff"] = staff
+    data = json.dumps(payload).encode()
     url = os.environ["VENUS_URL"].rstrip("/") + "/api/event"
     request = urllib.request.Request(url, data, {"Authorization": "Bearer " + os.environ["OFFICE_TOKEN"], "Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=2):

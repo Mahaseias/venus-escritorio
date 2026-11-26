@@ -1,0 +1,14 @@
+{
+  "url": "https://escritorio.venustecnologia.com.br",
+  "token": "COLE_AQUI_O_OFFICE_TOKEN_DO_RENDER",
+  "claude": "claude",
+  "maxParalelo": 2,
+  "intervaloSegundos": 10,
+  "timeoutMinutos": 60,
+  "args": ["--permission-mode", "acceptEdits"],
+  "setores": {
+    "secretaria": {"pasta": "C:/Venus/agentes/secretaria"},
+    "marketing": {"pasta": "C:/Venus/agentes/marketing"},
+    "dev": {"pasta": "C:/Venus/agentes/dev", "args": ["--permission-mode", "acceptEdits", "--allowedTools", "Bash(git status),Bash(git diff:*),Bash(npm test:*)"]}
+  }
+}
