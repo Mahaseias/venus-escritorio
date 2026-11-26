@@ -74,6 +74,7 @@ const DEBUG=/[?&]debug/.test(location.search);
 
 /* ---------- utilidades de desenho ---------- */
 const cv=el('office'),g=cv.getContext('2d');
+const bgc=el('bgc'),bgx=bgc.getContext('2d');
 let ctx=g;
 const R=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x|0,y|0,w,h)};
 const hash=(x,y)=>{let h=x*374761393+y*668265263;h=(h^(h>>13))*1274126177;return((h^(h>>16))>>>0)/4294967295};
@@ -152,7 +153,6 @@ function bubble(x,y,kind,t){
 
 /* ---------- elementos dinâmicos ---------- */
 function screens(t){
-  ctx=g;
   ROOMS.forEach((room,ri)=>room.mon.forEach((mx,i)=>{
     const role=setores[ri];
     const on=chars.some(c=>c.setor===role?.id&&c.working&&c.sit&&c.desk===i);
@@ -217,15 +217,29 @@ function sync(){
 
 /* ---------- render ---------- */
 let S=2,DPR=1;
+/* plano inclinado: o chão é girado em perspectiva (CSS 3D) e os bonecos são desenhados em pé por cima */
+const TILT=30*Math.PI/180,PERSP=1.9; // ângulo e distância da câmera (em larguras do plano)
+let K=1,PW=W,PH=H,HP=H,PP=1;
+function proj(x,y){ // ponto lógico do chão -> pixel CSS no wrap
+  const u=x*K-PW/2,v=y*K-PH,sc=PP/(PP-v*Math.sin(TILT));
+  return{X:PW/2+u*sc,Y:HP+v*Math.cos(TILT)*sc,s:sc};
+}
 function resize(){
   DPR=window.devicePixelRatio||1;
   const wrap=el('wrap').parentElement,cs=getComputedStyle(wrap),cw=wrap.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),ch=Math.max(300,wrap.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom));
-  const fit=Math.min(cw/W,ch/H);
-  let s=Math.floor(fit*DPR);
-  if(s<1||s/DPR<fit*.82)s=fit*DPR;
-  S=s;cv.width=Math.round(W*S);cv.height=Math.round(H*S);
-  cv.style.width=(cv.width/DPR)+'px';cv.style.height=(cv.height/DPR)+'px';
+  const ratio=Math.cos(TILT)*PERSP*W/(PERSP*W+H*Math.sin(TILT)); // altura projetada / altura do plano
+  K=Math.min(cw/W,(ch-30)/(H*ratio));
+  PW=W*K;PH=H*K;PP=PERSP*PW;HP=PH*ratio;
+  const top=30; // folga para cabeças e nomes da primeira fila
+  const w=el('wrap');w.style.width=PW+'px';w.style.height=(HP+top)+'px';
+  S=K*DPR;
+  bgc.width=Math.round(W*S);bgc.height=Math.round(H*S);
+  Object.assign(bgc.style,{width:PW+'px',height:PH+'px',top:(HP+top-PH)+'px',transformOrigin:'50% 100%',transform:`perspective(${PP}px) rotateX(${TILT*180/Math.PI}deg)`});
+  cv.width=Math.round(PW*DPR);cv.height=Math.round((HP+top)*DPR);
+  cv.style.width=PW+'px';cv.style.height=(HP+top)+'px';
+  TOP=top;
 }
+let TOP=30;
 addEventListener('resize',resize);
 
 let last=performance.now();
@@ -247,40 +261,42 @@ function frame(now){
 }
 function roundRect(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
 function draw(t){
-  g.setTransform(S,0,0,S,0,0);g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
+  // chão (canvas inclinado)
+  bgx.setTransform(S,0,0,S,0,0);bgx.imageSmoothingEnabled=true;bgx.imageSmoothingQuality='high';
   if(t-nightAt>5000){NIGHT=noite();nightAt=t}
-  const bg=NIGHT?BG.noite:BG.dia;
-  if(bg.complete&&bg.naturalWidth)g.drawImage(bg,0,0,W,H);else{g.fillStyle='#1a1527';g.fillRect(0,0,W,H)}
-  g.imageSmoothingEnabled=false;ctx=g;
+  const bgi=NIGHT?BG.noite:BG.dia;
+  if(bgi.complete&&bgi.naturalWidth)bgx.drawImage(bgi,0,0,W,H);else{bgx.fillStyle='#1a1527';bgx.fillRect(0,0,W,H)}
+  bgx.imageSmoothingEnabled=false;ctx=bgx;
   if(DEBUG){for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){ctx.fillStyle=!grid[y][x]?'rgba(255,0,0,.25)':block[y][x]?'rgba(255,160,0,.35)':'rgba(0,255,120,.12)';ctx.fillRect(x*T+.5,y*T+.5,T-1,T-1)}
     IDLE.forEach(s=>{const p=spotPos(s);R(p.x-1,p.y-1,3,3,'#00e5ff')});ROOMS.forEach(r=>r.seats.forEach(x=>R(P(x)-1,P(SEAT_PY)-1,3,3,'#ff00ff')))}
   screens(t);
-  const items=[];
-  chars.forEach(c=>items.push({y:c.y,f:()=>{
-    ctx=g;
-    if(selected===c.id){ctx.fillStyle='rgba(201,166,242,.75)';ctx.beginPath();ctx.ellipse(c.x,c.y,8,2.5,0,0,7);ctx.fill()}
+  // placas e relógio no chão/parede
+  bgx.textAlign='center';bgx.textBaseline='middle';
+  const plate=(txt,px,py)=>{bgx.font='700 6px system-ui,sans-serif';const w=bgx.measureText(txt).width+9,h=9.5,x=P(px),y=P(py);
+    bgx.fillStyle='rgba(20,17,31,.55)';bgx.beginPath();bgx.roundRect(x-w/2,y-h/2,w,h,h/2);bgx.fill();bgx.fillStyle='rgba(243,239,250,.92)';bgx.fillText(txt,x,y+.3)};
+  ROOMS.forEach(r=>plate(r.name.toUpperCase(),r.lab[0],r.lab[1]));
+  plate('COPA',380,660);plate('SALA DE REUNIÃO',1095,750);
+  const now=new Date(),hh=String(now.getHours()).padStart(2,'0'),mm=String(now.getMinutes()).padStart(2,'0');
+  bgx.fillStyle='#ff5a4a';bgx.font='700 4.5px ui-monospace,monospace';bgx.fillText(hh+':'+mm,P(137),P(401));
+
+  // bonecos em pé sobre o plano (canvas da frente, sem inclinação)
+  g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,cv.width,cv.height);
+  const place=c=>{const p=proj(c.x,c.y),a=K*DPR*p.s;g.setTransform(a,0,0,a,p.X*DPR-a*c.x,(TOP+p.Y)*DPR-a*c.y);return{p,a}};
+  chars.slice().sort((a,b)=>a.y-b.y).forEach(c=>{
+    place(c);ctx=g;
+    if(selected===c.id){ctx.fillStyle='rgba(201,166,242,.75)';ctx.beginPath();ctx.ellipse(c.x,c.y,8,2.5*Math.cos(TILT),0,0,7);ctx.fill()}
     drawChar(c,t);
-  }}));
-  items.sort((a,b)=>a.y-b.y).forEach(i=>i.f());
-  chars.forEach(c=>{
     if(c.path.length||c.final||!live()||c.leaving)return;
     const top=Math.round(c.y)-(c._h||24);
     if(c.working&&c.sit)bubble(Math.round(c.x)+2,top+30,'dots',t);
     else if(c.spot&&t-c.arrivedAt<6000+((c.idx*1300)%4000))bubble(Math.round(c.x),top+28,c.spot.ic,t);
   });
-  // textos em resolução de tela
-  g.setTransform(1,0,0,1,0,0);
-  const fs=Math.max(9,Math.round(Math.min(11,4.2*S/DPR)*DPR));
-  g.textAlign='center';g.textBaseline='middle';
-  const plate=(txt,px,py)=>{g.font=`700 ${Math.round(fs*.82)}px system-ui,sans-serif`;const w=g.measureText(txt).width+fs*1.4,h=fs*1.5,x=P(px)*S,y=P(py)*S;
-    g.fillStyle='rgba(20,17,31,.55)';roundRect(x-w/2,y-h/2,w,h,h/2);g.fill();g.fillStyle='rgba(243,239,250,.92)';g.fillText(txt,x,y+.5)};
-  ROOMS.forEach(r=>plate(r.name.toUpperCase(),r.lab[0],r.lab[1]));
-  plate('COPA',380,660);plate('SALA DE REUNIÃO',1095,750);
-  const now=new Date(),hh=String(now.getHours()).padStart(2,'0'),mm=String(now.getMinutes()).padStart(2,'0');
-  g.fillStyle='#ff5a4a';g.font=`700 ${Math.max(7,Math.round(fs*.62))}px ui-monospace,monospace`;g.fillText(hh+':'+mm,P(137)*S,P(401)*S);
+  // nomes
+  g.setTransform(1,0,0,1,0,0);g.textAlign='center';g.textBaseline='middle';
+  const fs=Math.max(9,Math.round(Math.min(11,4.2*K)*DPR));
   g.font=`600 ${fs}px system-ui,sans-serif`;
-  const tags=chars.map(c=>{const w=g.measureText(c.name).width+fs*1.6,h=fs*1.55;
-    return{c,label:c.name,w,h,x:c.x*S,y:(c.y-(c._h||24)-2)*S-h/2-2*DPR}}).sort((a,b)=>b.y-a.y);
+  const tags=chars.map(c=>{const p=proj(c.x,c.y),w=g.measureText(c.name).width+fs*1.6,h=fs*1.55;
+    return{c,label:c.name,w,h,x:p.X*DPR,y:(TOP+p.Y-((c._h||24)+2)*K*p.s)*DPR-h/2-2*DPR}}).sort((a,b)=>b.y-a.y);
   const placed=[];
   tags.forEach(tg=>{let guard=0;while(guard++<6&&placed.some(p=>Math.abs(p.x-tg.x)<(p.w+tg.w)/2+2*DPR&&Math.abs(p.y-tg.y)<(p.h+tg.h)/2+DPR))tg.y-=tg.h+2*DPR;placed.push(tg)});
   tags.forEach(({c,label,w,h,x,y})=>{
@@ -304,7 +320,7 @@ function avatar(f,scale=3){
 }
 
 /* ---------- interação no mapa ---------- */
-function hit(e){const b=cv.getBoundingClientRect(),mx=(e.clientX-b.left)/b.width*W,my=(e.clientY-b.top)/b.height*H;let best=null,bd=14;chars.forEach(c=>{const d=Math.hypot(c.x-mx,(c.y-(c._h||24)/2)-my);if(d<bd){bd=d;best=c}});return best}
+function hit(e){const b=cv.getBoundingClientRect(),mx=e.clientX-b.left,my=e.clientY-b.top;let best=null,bd=1e9;chars.forEach(c=>{const p=proj(c.x,c.y),r=K*p.s,d=Math.hypot(p.X-mx,(TOP+p.Y-(c._h||24)/2*r)-my);if(d<16*r&&d<bd){bd=d;best=c}});return best}
 cv.addEventListener('click',e=>{const c=hit(e);openFicha(c?c.id:null)});
 cv.addEventListener('mousemove',e=>{cv.style.cursor=hit(e)?'pointer':'default'});
 
