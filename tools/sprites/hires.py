@@ -12,7 +12,7 @@ P = {
  'livia': {'ref': ('lr2', 1), 'down': [('lr2', 1), ('lr2', 0), ('lr2', 'm0')], 'side': [('lr2', 2), ('lr2', 10), ('lr2', 9)],
            'up': None, 'sit': [('livia', 12), ('livia', 13)], 'sitref': ('livia', 1), 'recolor': 'livia'},
  'rafael': {'ref': ('lr2', 4), 'down': [('lr2', 4), ('lr2', 12), ('lr2', 'm12')], 'side': [('lr2', 5), ('lr2', 13), ('lr2', 14)],
-            'up': [('lr2', 3), ('lr2', 11), ('lr2', 'm11')], 'sit': [('rafael', 12), ('rafael', 13)], 'sitref': ('rafael', 1), 'recolor': 'rafael'},
+            'up': [('lr2', 11), ('lr2', 11), ('lr2', 'm11')], 'sit': [('rafael', 12), ('rafael', 13)], 'sitref': ('rafael', 1), 'recolor': 'rafael'},
  'bia': {'ref': ('bia', 0), 'down': [('bia', 0), ('bia', 3), ('bia', 4)], 'side': [('bia', 2), ('bia', 7), ('bia', 8)],
          'up': [('bia', 1), ('bia', 5), ('bia', 6)], 'sit': [('bia', 9), ('bia', 10)], 'sitref': ('bia', 0)},
  'caio': {'ref': ('caio2', 1), 'down': [('caio2', 1), ('caio2', 4), ('caio2', 'm4')], 'side': [('caio2', 2), ('caio2', 12), ('caio2', 14)],

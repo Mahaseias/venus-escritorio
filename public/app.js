@@ -22,6 +22,7 @@ function drawSprite(c,t,sp){
     if(moving){key=base+[1,0,2,0][Math.floor(c.dist/6)%4]}
     else key=(base==='down'&&sp.blink&&Math.floor(t/140+c.idx*17)%36===0)?'blink':base+'0';
   }
+  if(moving&&!c.sit&&Math.floor(c.dist/6)%2)dy-=1; // leve balanço ao andar
   const f=sp[key]||sp.down0,[sx,sy,w,h,ax]=f,K=SPR._scale||1,dw=w/K,dh=h/K,da=ax/K;
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.fillRect(x-6,y+dy-1,12,2);ctx.fillRect(x-5,y+dy+1,10,1);
   // o boneco é guardado em alta resolução e reduzido aqui com suavização de qualidade
