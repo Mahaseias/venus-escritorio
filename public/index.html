@@ -17,10 +17,10 @@ button:focus-visible,[tabindex]:focus-visible,textarea:focus-visible,input:focus
 .hdav{display:block}
 
 /* Entrada */
-#exterior{position:relative;min-height:100vh;display:grid;place-items:end start;overflow:hidden}
+#exterior{position:relative;height:100vh;height:100dvh;display:grid;place-items:end start;overflow:hidden}
 #exterior img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #exterior::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,12,22,.15) 0%,rgba(14,12,22,.35) 45%,rgba(14,12,22,.92) 100%)}
-.hero{position:relative;z-index:1;padding:clamp(24px,6vw,72px);max-width:760px}
+.hero{position:relative;z-index:1;padding:clamp(24px,6vw,72px);padding-bottom:max(clamp(24px,6vw,72px),env(safe-area-inset-bottom));max-width:760px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.18em;font-size:12px;color:var(--accent2)}
 .brand i{width:10px;height:10px;transform:rotate(45deg);background:var(--accent);display:inline-block;box-shadow:0 0 12px var(--accent)}
 .hero h1{font:600 clamp(34px,5.4vw,64px)/1.05 Georgia,"Times New Roman",serif;margin:14px 0 12px}
@@ -31,7 +31,7 @@ button:focus-visible,[tabindex]:focus-visible,textarea:focus-visible,input:focus
 .cta:disabled{opacity:.6;cursor:wait}
 
 /* Interior */
-#interior{height:100vh;display:flex;flex-direction:column}
+#interior{height:100vh;height:100dvh;display:flex;flex-direction:column}
 .top{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 .top .brand{margin-right:auto}
 #who{display:flex;gap:8px;align-items:center}
@@ -134,7 +134,7 @@ li.open .tbody{display:block}
 .hr{font-variant-numeric:tabular-nums;color:var(--accent2)!important;font-weight:600}
 
 /* Recepção */
-#recepcao{position:relative;height:100vh;min-height:520px;overflow:hidden;background:#0c0a13}
+#recepcao{position:relative;height:100vh;height:100dvh;overflow:hidden;background:#0c0a13}
 #rgl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none;outline:0}
 #rtag{position:absolute;left:0;top:0;pointer-events:none;background:rgba(20,17,31,.85);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:3px 11px;font-size:12px;font-weight:600;white-space:nowrap}
 #rtag i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px;box-shadow:0 0 8px var(--ok)}

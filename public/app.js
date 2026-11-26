@@ -429,7 +429,7 @@ function renderReception(){
   el('rtagn').textContent=nome+' · recepção';
   const msgs=h('div',{class:'cmsgs','aria-live':'polite'});
   const fala=t=>{const b=h('div',{class:'msg ag'});b.append(mdLite(t));msgs.append(b);return b};
-  box.replaceChildren(h('div',{class:'chead'},h('div',{class:'av'},avatar(s,1.45)),h('div',{class:'who'},h('b',{},s.nome),h('span',{},'Recepção da Venus · assistente de IA'))),msgs);
+  box.replaceChildren(h('div',{class:'chead'},h('div',{class:'av'},avatar(s,1.45)),h('div',{class:'who'},h('b',{},s.nome),h('span',{},'Recepção da Venus · assistente de IA')),rStage!=='inicio'?h('button',{class:'x','aria-label':'Fechar conversa',title:'Fechar conversa',onclick:()=>{rStage='inicio';rErr='';renderReception()}},'×'):''),msgs);
   if(me){
     fala(`Oi, ${primeiro(me.nome)}! Que bom te ver. O pessoal está lá dentro.`);
     if(rStage!=='membro'){
