@@ -157,6 +157,7 @@ function plan(c,now){
   if(!c.working&&!c.nextIdle)c.nextIdle=now+20000+Math.random()*25000;
 }
 function sync(){
+  chars.filter(c=>!funcById(c.id)).forEach(release);chars=chars.filter(c=>funcById(c.id));
   funcs.forEach(f=>{if(present(f)&&!chars.some(c=>c.id===f.id&&!c.leaving))chars.push(makeChar(f,firstChars?'place':'entry'))});
   if(funcs.length)firstChars=false;
 }
@@ -281,7 +282,8 @@ function openFicha(id){
     h('section',{},h('h4',{},'O que faz'),h('ul',{class:'faz'},(f.faz||[]).map(x=>h('li',{},x)))),
     h('section',{},h('h4',{},'Hobbies'),h('div',{class:'chips'},(f.hobbies||[]).map(x=>h('span',{class:'chip'},x)))),
     h('section',{id:'fagenda'}),
-    h('section',{id:'ftasks'})
+    h('section',{id:'ftasks'}),
+    f.dinamico&&me&&!demo?h('section',{},h('button',{class:'ghost sm',onclick:async()=>{if(!confirm(`Desligar ${f.nome} do escritório? As tarefas na fila dele serão canceladas.`))return;try{await api('/api/agentes',{id:f.id,acao:'desligar'});log(`${me.nome} desligou ${primeiro(f.nome)}`);openFicha(null);poll(true)}catch(e){alert(e.message)}}},'Desligar este agente')):''
   );
   updateFicha(true);
   if(me&&!demo)loadTasks(id);
@@ -385,7 +387,7 @@ function renderChat(){
   chatMsgs.forEach(m=>{
     const b=h('div',{class:'msg '+(m.de==='eu'?'eu':'ag')});
     m.de==='eu'?b.append(m.texto):b.append(mdLite(m.texto));
-    (m.tarefas||[]).forEach(t=>b.append(h('div',{class:'tchip'},'Tarefa na fila: '+t)));
+    (m.tarefas||[]).forEach(t=>b.append(h('div',{class:'tchip'},'Tarefa na fila: '+t)));(m.agentes||[]).forEach(t=>b.append(h('div',{class:'tchip'},'Proposta de agente aguardando aprovação em Reuniões: '+t)));
     box.append(b);
   });
   if(chatBusy)box.append(h('div',{class:'msg ag typing'},h('i',{}),h('i',{}),h('i',{})));
@@ -458,7 +460,7 @@ function renderReception(){
     return;
   }
   fala('Que bom ter você aqui! Me conta: o que você procura? Posso tirar dúvidas e anotar seu recado para a equipe.');
-  rMsgs.forEach(m=>{if(m.de==='eu')msgs.append(h('div',{class:'msg eu'},m.texto));else{const b=fala(m.texto);if(m.anotou)b.append(h('div',{class:'okchip'},'Recado anotado para a equipe da Venus'))}});
+  rMsgs.forEach(m=>{if(m.de==='eu')msgs.append(h('div',{class:'msg eu'},m.texto));else{const b=fala(m.texto);if(m.anotou)b.append(h('div',{class:'okchip'},'Recado anotado para a equipe da Venus'));if(m.comercial!=null&&s.comercial)b.append(h('a',{class:'wa',target:'_blank',rel:'noopener',href:'https://wa.me/'+s.comercial.whatsapp+'?text='+encodeURIComponent('Olá! Vim pela recepção virtual da Venus.'+(m.comercial?' Assunto: '+m.comercial:''))},'Falar com o Comercial no WhatsApp',h('span',{},s.comercial.exibicao)))}});
   if(rBusy)msgs.append(h('div',{class:'msg ag typing'},h('i',{}),h('i',{}),h('i',{})));
   const err=h('p',{class:'cerr',role:'alert'},rErr);
   if(rStage==='form'||rStage==='enviado'){
@@ -512,6 +514,10 @@ async function openReunioes(){
   let j;try{const r=await fetch('/api/reunioes',{cache:'no-store'});if(!r.ok)throw 0;j=await r.json()}catch{if(panel==='reunioes')body.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar.'));return}
   if(panel!=='reunioes')return;body.replaceChildren();
   const msg=h('p',{class:'muted small'},j.ia?(j.agora?'Reunião em andamento, a ata aparece aqui em instantes…':''):'Falta a chave da API para as reuniões acontecerem.');
+  if((j.agentes||[]).length){body.append(h('div',{class:'sub2'},'Novos agentes aguardando aprovação'));
+    j.agentes.forEach(a=>{const p=a.perfil,dec=acao=>async()=>{try{await api('/api/agentes',{id:a.id,acao});log(`${me.nome} ${acao==='aprovar'?'aprovou o agente':'recusou o agente'}: ${p.nome}`);await poll(true);openReunioes()}catch(e){alert(e.message)}};
+      body.append(h('div',{class:'card'},h('h5',{},p.nome+' · '+p.cargo),h('span',{class:'muted small'},`${salaSetor(p.setor)} · ${p.turno.inicio}–${p.turno.fim} · pedido por ${a.autor}`),h('p',{},p.bio),h('ul',{class:'faz'},p.faz.map(x=>h('li',{},x))),
+        h('details',{class:'more'},h('summary',{},'Ver instruções de trabalho'),h('p',{style:'white-space:pre-wrap'},p.instrucoes)),h('div',{class:'prow',style:'justify-content:flex-end'},h('button',{class:'ghost sm',onclick:dec('recusar')},'Recusar'),h('button',{class:'cta sm',onclick:dec('aprovar')},'Aprovar e contratar'))))})}
   body.append(h('div',{class:'sub2'},'Agenda diária'));
   j.agenda.forEach(a=>{const b=h('button',{class:'ghost sm',disabled:!j.ia||!!j.agora},'Convocar agora');
     b.onclick=async()=>{b.disabled=true;msg.textContent='Reunindo a equipe na sala… leva até um minuto.';poll(true);try{await api('/api/reunioes/convocar',{tipo:a.id});log(`${me.nome} convocou a reunião: ${a.nome}`)}catch(e){alert(e.message)}poll(true);if(panel==='reunioes')openReunioes()};

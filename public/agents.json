@@ -383,6 +383,11 @@
       "Automação e agentes de IA para rotinas de empresas"
     ],
     "site": "venustecnologia.com.br",
-    "secretaria": "livia"
+    "secretaria": "livia",
+    "comercial": {
+      "nome": "Comercial da Venus",
+      "whatsapp": "5511990038253",
+      "exibicao": "(11) 99003-8253"
+    }
   }
 }
