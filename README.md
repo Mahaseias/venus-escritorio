@@ -1,6 +1,6 @@
 # Escritório virtual da Venus
 
-Escritório em pixel art que mostra os agentes de IA da Venus trabalhando. Cada funcionário tem perfil, turno e mesa. Quem tem acesso pode clicar num funcionário e mandar uma tarefa, que um PC ligado executa com o Claude Code.
+Escritório em 3D (three.js) que mostra os agentes de IA da Venus trabalhando. Arraste para girar a câmera e role para aproximar. Cada funcionário tem perfil, turno e mesa. Quem tem acesso pode clicar num funcionário e mandar uma tarefa, que um PC ligado executa com o Claude Code.
 
 ```
 Navegador ──► Render (server.mjs) ◄── worker no PC de casa ──► claude -p
@@ -107,6 +107,13 @@ O hook envia só o setor, o funcionário, um identificador anônimo da sessão e
 ```html
 <iframe src="https://escritorio.venustecnologia.com.br/" title="Escritório virtual da Venus Tecnologia" width="100%" height="720" loading="lazy" style="border:0;border-radius:16px"></iframe>
 ```
+
+## Cena 3D
+
+- `public/office3d.js`: cena, luz (dia/noite pelo horário de Cuiabá; `?dia` / `?noite` para testar), móveis e personagens animados.
+- `public/app.js`: planta (salas, portas), lista de móveis (`F('modelo', x, y, {...})`) e pontos de parada. A grade de caminhada sai dessa mesma lista.
+- `agents.json`: o campo `modelo` escolhe o boneco de cada funcionário (arquivos em `public/models/c`).
+- Créditos: modelos 3D de Kenney (kenney.nl), licença CC0; motor three.js, licença MIT (em `public/vendor`).
 
 ## Rodar localmente
 

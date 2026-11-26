@@ -9,12 +9,10 @@ const STATIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/fachada.jpg': ['fachada.jpg', 'image/jpeg'],
-  '/sprites.png': ['sprites.png', 'image/png'],
-  '/escritorio-dia.jpg': ['escritorio-dia.jpg', 'image/jpeg'],
-  '/escritorio-noite.jpg': ['escritorio-noite.jpg', 'image/jpeg'],
-  '/sprites.json': ['sprites.json', 'application/json; charset=utf-8']
+  '/office3d.js': ['office3d.js', 'text/javascript; charset=utf-8']
 };
 const files = Object.fromEntries(Object.entries(STATIC).map(([k, [f, t]]) => [k, [readFileSync(pub(f)), t]]));
+const assets = new Map();
 const cfg = JSON.parse(readFileSync(pub('agents.json')));
 const SETORES = cfg.setores, FUNC = cfg.funcionarios, TZ = cfg.fuso || 'America/Cuiaba';
 const byId = Object.fromEntries(FUNC.map(f => [f.id, f]));
@@ -195,7 +193,7 @@ function office(user) {
     funcionarios: FUNC.map(f => {
       const atual = tasks.find(t => t.func === f.id && t.status === 'andamento');
       const fila = tasks.filter(t => t.func === f.id && t.status === 'fila').length;
-      const o = {id: f.id, nome: f.nome, cargo: f.cargo, setor: f.setor, turno: turnoTexto(f.turno), bio: f.bio, faz: f.faz, hobbies: f.hobbies, aparencia: f.aparencia,
+      const o = {id: f.id, nome: f.nome, cargo: f.cargo, setor: f.setor, turno: turnoTexto(f.turno), bio: f.bio, faz: f.faz, hobbies: f.hobbies, aparencia: f.aparencia, modelo: f.modelo,
         emTurno: emTurno(f), trabalhando: ativos.has(f.id)};
       const rot = rotinaAtual(f);
       o.rotinasHoje = agenda(f).length;
@@ -206,7 +204,7 @@ function office(user) {
 }
 
 /* ---------- http ---------- */
-const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'self' https://venustecnologia.com.br https://*.venustecnologia.com.br";
+const CSP = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'self' https://venustecnologia.com.br https://*.venustecnologia.com.br";
 async function readJSON(req, max = 8192) {
   let body = '';
   for await (const chunk of req) { body += chunk; if (body.length > max) throw Object.assign(new Error('grande'), {code: 413}); }
@@ -225,6 +223,11 @@ http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET') {
       if (STATIC[path]) { const [buf, type] = files[path]; return send(200, buf, type, path === '/' ? {'Content-Security-Policy': CSP} : {'Cache-Control': 'public, max-age=300'}); }
+      const asset = /^\/(vendor|models)\/((?:[\w-]+\/)*[\w.-]+\.(js|glb|png))$/.exec(path);
+      if (asset && !path.includes('..')) {
+        if (!assets.has(path)) { try { assets.set(path, readFileSync(pub(path.slice(1)))); } catch { return send(404, {}); } }
+        return send(200, assets.get(path), {js: 'text/javascript; charset=utf-8', glb: 'model/gltf-binary', png: 'image/png'}[asset[3]], {'Cache-Control': 'public, max-age=86400'});
+      }
       if (path === '/health') return send(200, {ok: true});
       if (path === '/api/office') return send(200, office(user));
       if (path === '/api/team') { // compatibilidade com a versão anterior

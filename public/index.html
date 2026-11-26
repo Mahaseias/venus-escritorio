@@ -58,11 +58,15 @@ aside h2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(
 #events li{display:grid;grid-template-columns:42px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid #221e32;font-size:12.5px;color:#d6cfe4}
 #events time{color:var(--muted);font-variant-numeric:tabular-nums}
 #events .em{color:var(--muted);font-style:italic;grid-column:1/-1}
-.stage{position:relative;display:flex;align-items:center;justify-content:center;padding:18px;min-width:0;min-height:0;background:radial-gradient(ellipse at center,#1a1628 0%,#0e0c16 70%)}
-#wrap{position:relative;max-width:100%}
+.stage{position:relative;display:flex;align-items:stretch;justify-content:center;padding:10px;min-width:0;min-height:0;background:radial-gradient(ellipse at center,#1a1628 0%,#0e0c16 70%)}
+#wrap{position:relative;width:100%;height:100%;min-height:320px}
 .stage.withf{padding-right:410px}
-#bgc{position:absolute;left:0;display:block;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px #2c2740}
-canvas#office{position:absolute;left:0;top:0;display:block}
+#gl,canvas#office{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:12px}
+#gl{cursor:grab;touch-action:none;outline:0}
+canvas#office{pointer-events:none}
+#hint{position:absolute;left:12px;bottom:10px;font-size:11.5px;color:var(--muted);background:rgba(20,17,31,.6);padding:4px 10px;border-radius:999px;pointer-events:none}
+.inic{border-radius:9px;display:grid;place-items:center;font-weight:700;color:#1a1424}
+.hdav{object-fit:cover}
 .foot{padding:12px 18px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px}
 
 /* Ficha */
@@ -119,7 +123,7 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
 .drow{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
 #lerr{color:#ffb3b3;font-size:12.5px;min-height:18px;margin:10px 0 0}
 
-@media(max-width:860px){.stage.withf{padding-right:10px}#interior{height:auto;min-height:100vh}.layout{grid-template-columns:1fr}aside{border-right:0;border-top:1px solid var(--line);order:2}.stage{padding:10px;min-height:300px}#ficha{position:fixed;inset:auto 8px 8px 8px;top:15vh;width:auto;z-index:5}}
+@media(max-width:860px){.stage.withf{padding-right:10px}#interior{height:auto;min-height:100vh}.layout{grid-template-columns:1fr}aside{border-right:0;border-top:1px solid var(--line);order:2}.stage{padding:6px;height:62vh;min-height:320px}#ficha{position:fixed;inset:auto 8px 8px 8px;top:15vh;width:auto;z-index:5}}
 @media(prefers-reduced-motion:reduce){.cta{transition:none}}
 </style>
 </head>
@@ -154,8 +158,9 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
     </aside>
     <div class="stage">
       <div id="wrap">
-        <canvas id="bgc" aria-hidden="true"></canvas>
-        <canvas id="office" aria-label="Planta do escritório vista de cima, com recepção, estúdio de marketing, laboratório de software, copa e sala de reunião"></canvas>
+        <canvas id="gl" aria-label="Escritório da Venus em 3D: arraste para girar, role para aproximar"></canvas>
+        <canvas id="office" aria-hidden="true"></canvas>
+        <div id="hint">Arraste para girar · role ou pince para aproximar</div>
       </div>
       <div id="ficha" hidden role="dialog" aria-label="Ficha do funcionário"></div>
     </div>
@@ -174,5 +179,6 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
 </dialog>
 
 <script src="/app.js"></script>
+<script type="module" src="/office3d.js"></script>
 </body>
 </html>
