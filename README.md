@@ -21,6 +21,9 @@ Variáveis de ambiente (aba **Environment** do serviço):
 | `OFFICE_USERS` | Lista de quem pode entrar e mandar tarefas (veja abaixo). |
 | `STATE_FILE` | Opcional. Caminho de um arquivo para guardar fila e histórico, ex.: `/data/state.json`. |
 | `NOTION_TOKEN` | Token de uma integração interna do Notion com acesso à base "Atividades do escritório". Sem ele, a agenda aparece só pelos horários, sem confirmar se a rotina rodou. |
+| `ANTHROPIC_API_KEY` | Chave da API da Anthropic. Liga a conversa com os agentes (botão "Conversar" na ficha, só para logados). |
+| `CHAT_MODEL` | Opcional (padrão `claude-sonnet-5-5`). Modelo usado na conversa. |
+| `CHAT_DAILY_LIMIT` | Opcional (padrão 300). Máximo de mensagens por pessoa por dia. |
 | `TASK_TIMEOUT_MIN` | Opcional (padrão 90). Depois desse tempo sem resposta, a tarefa vira "erro". |
 
 **Persistência:** sem `STATE_FILE` em disco persistente, a fila e o histórico zeram a cada deploy ou reinício. No plano gratuito do Render não existe disco persistente. Para manter o histórico, use o plano Starter, adicione um Disk montado em `/data` e defina `STATE_FILE=/data/state.json`.

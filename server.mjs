@@ -29,17 +29,18 @@ const TASK_TIMEOUT_MIN = Number(process.env.TASK_TIMEOUT_MIN || 90);
 /* ---------- estado ---------- */
 const sessions = new Map();          // sessões do Claude Code (hooks)
 let tasks = [];                      // fila e histórico de tarefas
+let chats = {};                      // conversas: 'email|funcionario' -> [{de, texto, t, tarefa?}]
 let workerSeen = 0;
 const STATE_FILE = process.env.STATE_FILE;
 if (STATE_FILE && existsSync(STATE_FILE)) {
-  try { tasks = JSON.parse(readFileSync(STATE_FILE, 'utf8')).tasks || []; } catch { console.error('Não foi possível ler STATE_FILE'); }
+  try {  const st = JSON.parse(readFileSync(STATE_FILE, 'utf8')); tasks = st.tasks || []; chats = st.chats || {}; } catch { console.error('Não foi possível ler STATE_FILE'); }
 }
 let saveTimer = null;
 function save() {
   if (!STATE_FILE || saveTimer) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    try { writeFileSync(STATE_FILE + '.tmp', JSON.stringify({tasks})); renameSync(STATE_FILE + '.tmp', STATE_FILE); }
+    try { writeFileSync(STATE_FILE + '.tmp', JSON.stringify({tasks, chats})); renameSync(STATE_FILE + '.tmp', STATE_FILE); }
     catch (e) { console.error('Falha ao salvar estado:', e.message); }
   }, 800);
 }
@@ -188,7 +189,7 @@ function office(user) {
   const ativos = estado();
   return {
     agora: Date.now(), fuso: TZ, setores: SETORES, notion: user ? (NOTION_TOKEN ? (notionOk ? 'ok' : 'erro') : 'desligado') : undefined,
-    logado: user ? {nome: user.nome || user.email, email: user.email} : null,
+    logado: user ? {nome: user.nome || user.email, email: user.email} : null, chat: user ? !!AI_KEY : undefined,
     worker: user ? {online: Date.now() - workerSeen < 60000, visto: workerSeen || null} : undefined,
     funcionarios: FUNC.map(f => {
       const atual = tasks.find(t => t.func === f.id && t.status === 'andamento');
@@ -201,6 +202,79 @@ function office(user) {
       return o;
     })
   };
+}
+
+/* ---------- conversa com os agentes (API da Anthropic) ---------- */
+const AI_KEY = process.env.ANTHROPIC_API_KEY || '';
+const AI_BASE = process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com';
+const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-sonnet-5-5';
+const CHAT_DAILY = Number(process.env.CHAT_DAILY_LIMIT || 300);   // mensagens por pessoa por dia
+const chatCount = new Map();
+function chatAllowed(email) {
+  const k = email + '|' + new Date().toISOString().slice(0, 10), n = (chatCount.get(k) || 0) + 1;
+  if (chatCount.size > 500) chatCount.clear();
+  chatCount.set(k, n); return n <= CHAT_DAILY;
+}
+function novaTarefa(func, texto, autor) {
+  const ultima = Math.max(0, ...tasks.filter(t => t.func === func && t.status === 'fila').map(t => t.ordem ?? t.criada));
+  const t = {id: randomUUID(), func, texto, titulo: titulo(texto), autor, status: 'fila', criada: Date.now(), ordem: Math.max(Date.now(), ultima + 1)};
+  tasks.push(t); save(); return t;
+}
+function personaPrompt(f, user) {
+  const hora = new Intl.DateTimeFormat('pt-BR', {timeZone: TZ, weekday: 'long', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}).format(new Date());
+  const ag = agenda(f).map(i => `- ${i.hora} ${i.nome}: ${i.status}${i.resumo ? ' — ' + i.resumo : ''}`).join('\n') || '- nenhuma rotina hoje';
+  const fila = tasks.filter(t => t.func === f.id && (t.status === 'fila' || t.status === 'andamento')).map(t => `- [${t.status}] ${t.titulo}`).join('\n') || '- vazia';
+  const feitas = tasks.filter(t => t.func === f.id && (t.status === 'concluida' || t.status === 'erro')).slice(-3).map(t => `- [${t.status}] ${t.titulo}: ${(t.resultado || '').slice(0, 300)}`).join('\n') || '- nenhuma';
+  const colegas = FUNC.filter(x => x.id !== f.id).map(x => `${x.nome} (${x.cargo})`).join('; ');
+  return `${f.instrucoes || ''}
+
+Você é ${f.nome}, ${f.cargo} da Venus Tecnologia, um agente de IA que trabalha no escritório virtual da empresa. Sobre você: ${f.bio} Suas atribuições: ${(f.faz || []).join('; ')}. Hobbies (use com naturalidade, só se vier ao caso): ${(f.hobbies || []).join(', ')}. Seu turno: ${turnoTexto(f.turno)}. Colegas: ${colegas}.
+
+Você está conversando pelo chat interno com ${user.nome || user.email}, da equipe da Venus. Agora é ${hora} (horário de Cuiabá).
+
+Sua agenda de hoje (rotinas automáticas):
+${ag}
+
+Sua fila de tarefas:
+${fila}
+
+Últimas tarefas finalizadas:
+${feitas}
+
+Como conversar:
+- Fale em português do Brasil, em primeira pessoa, com naturalidade e frases curtas, como um colega de trabalho. Sem listas longas a não ser que peçam.
+- Nesta conversa você pensa, responde, planeja, revisa e redige textos. Você NÃO tem acesso direto a e-mail, Notion, arquivos, internet ou sistemas daqui do chat. Nunca diga que fez, enviou, publicou ou conferiu algo que não fez.
+- Quando a pessoa pedir um trabalho que precise de execução de verdade (pesquisar, mexer em arquivos ou código, preparar material completo), use a ferramenta criar_tarefa: ela coloca o pedido na sua fila, e ele é executado no seu turno pelo computador da Venus. Antes de criar, confirme o pedido se estiver vago. Depois de criar, diga que entrou na fila.
+- Se perguntarem algo que você não sabe (dados de clientes, números, o que outro colega fez), diga que não tem essa informação aqui.
+- Se perguntarem, você é um agente de IA (modelo Claude) com esse papel na Venus. Não finja ser uma pessoa.`;
+}
+const CHAT_TOOLS = [{name: 'criar_tarefa', description: 'Coloca uma tarefa na fila de trabalho deste funcionário para ser executada de verdade no turno dele. Use quando a pessoa pedir um trabalho que não dá para concluir só conversando.',
+  input_schema: {type: 'object', properties: {descricao: {type: 'string', description: 'Pedido completo e autossuficiente, com todo o contexto necessário para executar sem esta conversa. A primeira linha é o título.'}}, required: ['descricao']}}];
+async function anthropic(body) {
+  const r = await fetch(AI_BASE + '/v1/messages', {method: 'POST', signal: AbortSignal.timeout(60000),
+    headers: {'x-api-key': AI_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j?.error?.message || 'HTTP ' + r.status), {status: r.status});
+  return j;
+}
+async function conversar(f, user, hist) {
+  const messages = hist.slice(-30).map(m => ({role: m.de === 'eu' ? 'user' : 'assistant', content: m.texto}));
+  while (messages.length && messages[0].role !== 'user') messages.shift();
+  const criadas = []; let texto = '';
+  for (let i = 0; i < 3; i++) {
+    const out = await anthropic({model: CHAT_MODEL, max_tokens: 1200, system: personaPrompt(f, user), tools: CHAT_TOOLS, messages});
+    texto += (out.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+    const uses = (out.content || []).filter(c => c.type === 'tool_use');
+    if (out.stop_reason !== 'tool_use' || !uses.length) break;
+    messages.push({role: 'assistant', content: out.content});
+    messages.push({role: 'user', content: uses.map(u => {
+      const d = String(u.input?.descricao || '').trim().slice(0, 8000);
+      if (u.name !== 'criar_tarefa' || d.length < 3) return {type: 'tool_result', tool_use_id: u.id, is_error: true, content: 'Descrição inválida.'};
+      const t = novaTarefa(f.id, d, `${user.nome || user.email} (via conversa)`); criadas.push(t.titulo);
+      return {type: 'tool_result', tool_use_id: u.id, content: `Tarefa criada na fila: "${t.titulo}". ${emTurno(f) ? 'Você está no turno.' : 'Você está fora do turno; ela roda quando o turno começar.'} ${Date.now() - workerSeen < 60000 ? '' : 'Aviso: o computador que executa as tarefas está desligado agora.'}`};
+    })});
+  }
+  return {texto: texto.trim() || '(sem resposta)', criadas};
 }
 
 /* ---------- http ---------- */
@@ -233,6 +307,10 @@ http.createServer(async (req, res) => {
       if (path === '/api/team') { // compatibilidade com a versão anterior
         const ativos = estado();
         return send(200, SETORES.map(s => ({id: s.id, name: s.nome, room: s.sala, color: s.cor, active: FUNC.some(f => f.setor === s.id && ativos.has(f.id))})));
+      }
+      if (path === '/api/chat') {
+        if (!user) return send(401, {erro: 'Faça login'});
+        return send(200, {ativo: !!AI_KEY, mensagens: chats[user.email + '|' + url.searchParams.get('func')] || []});
       }
       if (path === '/api/tasks') {
         if (!user) return send(401, {erro: 'Faça login'});
@@ -295,15 +373,35 @@ http.createServer(async (req, res) => {
     if (path === '/api/logout') return send(200, {ok: true}, undefined, {'Set-Cookie': 'venus_sess=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'});
 
     if (!user) return send(401, {erro: 'Faça login'});
+    if (path === '/api/chat' || path === '/api/chat/limpar') {
+      const {func, mensagem} = await readJSON(req, 20000);
+      const f = byId[func]; if (!f) return send(400, {erro: 'Funcionário inválido'});
+      const key = user.email + '|' + f.id;
+      if (path === '/api/chat/limpar') { delete chats[key]; save(); return send(200, {ok: true}); }
+      const txt = String(mensagem || '').trim();
+      if (!txt || txt.length > 6000) return send(400, {erro: 'Escreva uma mensagem (até 6000 caracteres).'});
+      if (!AI_KEY) return send(503, {erro: 'A conversa ainda não está ligada: falta a chave ANTHROPIC_API_KEY no Render.'});
+      if (!chatAllowed(user.email)) return send(429, {erro: 'Limite diário de mensagens atingido.'});
+      const hist = chats[key] || (chats[key] = []);
+      hist.push({de: 'eu', texto: txt, t: Date.now()});
+      try {
+        const r = await conversar(f, user, hist);
+        const msg = {de: 'agente', texto: r.texto, t: Date.now(), ...(r.criadas.length ? {tarefas: r.criadas} : {})};
+        hist.push(msg); if (hist.length > 200) hist.splice(0, hist.length - 200); save();
+        return send(200, msg);
+      } catch (e) {
+        hist.pop(); console.error('Chat:', e.status || '', e.message);
+        const m = /credit balance/i.test(e.message) ? 'Os créditos da API acabaram.' : e.status === 401 ? 'A chave da API foi recusada.' : 'Não consegui responder agora. Tente de novo em instantes.';
+        return send(502, {erro: m});
+      }
+    }
     if (path === '/api/tasks') {
       const {func, texto} = await readJSON(req, 16000);
       const txt = String(texto || '').trim();
       if (!byId[func]) return send(400, {erro: 'Funcionário inválido'});
       if (txt.length < 3 || txt.length > 8000) return send(400, {erro: 'Descreva a tarefa (até 8000 caracteres).'});
       if (tasks.filter(t => t.status === 'fila').length >= 100) return send(429, {erro: 'Fila cheia.'});
-      const ultima = Math.max(0, ...tasks.filter(t => t.func === func && t.status === 'fila').map(t => t.ordem ?? t.criada));
-      const t = {id: randomUUID(), func, texto: txt, titulo: titulo(txt), autor: user.nome || user.email, status: 'fila', criada: Date.now(), ordem: Math.max(Date.now(), ultima + 1)};
-      tasks.push(t); save();
+      const t = novaTarefa(func, txt, user.nome || user.email);
       return send(201, pubTask(t));
     }
     const mv = /^\/api\/tasks\/([\w-]{8,64})\/mover$/.exec(path);

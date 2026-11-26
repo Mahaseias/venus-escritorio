@@ -102,6 +102,25 @@ canvas#office{pointer-events:none}
 li.open .tbody{display:block}
 .tbody pre{white-space:pre-wrap;word-break:break-word;font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:#120f1c;border-radius:8px;padding:8px 10px;margin:6px 0;max-height:280px;overflow:auto}
 .tbody pre.res{border-left:3px solid var(--accent)}
+.cta.wide{width:100%;margin-top:12px}
+#ficha.chat{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.chead{display:flex;align-items:center;gap:8px;padding:12px 12px;border-bottom:1px solid var(--line)}
+.chead .who{flex:1;min-width:0}.chead .who b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmsgs{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:88%;padding:9px 12px;border-radius:14px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.msg p{margin:0 0 8px}.msg p:last-child{margin:0}
+.msg.eu{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.msg.ag{align-self:flex-start;background:#241e38;border:1px solid #352d50;border-bottom-left-radius:4px;white-space:normal}
+.tchip{margin-top:8px;font-size:12px;background:#14432a;color:#7ff0a8;border-radius:8px;padding:5px 9px}
+.typing{display:flex;gap:4px;padding:12px}.typing i{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:tp 1s infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes tp{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.cempty{margin:auto;text-align:center;color:#ddd5ea;display:grid;justify-items:center;gap:6px;padding:20px}
+.cempty .big{width:84px;height:96px;border-radius:14px;background:linear-gradient(160deg,#2c2444,#1b1729);display:grid;place-items:center}
+.cempty p{margin:0}
+.cerr{color:#ffb3b3;font-size:12.5px;margin:0;padding:0 14px}
+.cform{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line);align-items:flex-end}
+.cform textarea{flex:1;resize:none;background:#120f1c;border:1px solid #3a3156;border-radius:12px;color:var(--text);padding:10px 12px;font:inherit;max-height:140px}
+@media(prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
 .tasks>li.nob{border:0;margin:10px 0 4px}
 .tasks>li.sub{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .trow.q{grid-template-columns:auto 1fr auto}

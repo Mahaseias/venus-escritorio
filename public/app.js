@@ -222,7 +222,7 @@ function avatar(f,scale=3){
   if(src){const im=new Image();im.src=src;im.className='hdav';im.alt='';im.style.height=26*scale+'px';im.style.width=26*scale*.8+'px';return im}
   return h('div',{class:'inic',style:`width:${20*scale}px;height:${20*scale}px;background:${corSetor(f.setor)};font-size:${7*scale}px`},primeiro(f.nome)[0]);
 }
-addEventListener('v3d-ready',()=>{resize();renderList();if(selected)openFicha(selected)});
+addEventListener('v3d-ready',()=>{resize();renderList();if(selected&&!chatFor)openFicha(selected)});
 
 /* ---------- interação no mapa ---------- */
 const glc=el('gl');let downAt=null;
@@ -257,16 +257,17 @@ function renderList(){
 /* ---------- ficha do funcionário ---------- */
 let tasksCache=[],tasksFor=null;
 function openFicha(id){
-  selected=id;renderList();
+  chatFor=null;selected=id;renderList();
   const box=el('ficha');
-  if(!id){box.hidden=true;document.querySelector('.stage').classList.remove('withf');resize();return}
+  if(!id){box.classList.remove('chat');box.hidden=true;document.querySelector('.stage').classList.remove('withf');resize();return}
   const f=funcById(id);if(!f)return;
-  const wasHidden=box.hidden;box.hidden=false;box.replaceChildren();document.querySelector('.stage').classList.add('withf');if(wasHidden)resize();
+  const wasHidden=box.hidden;box.hidden=false;box.classList.remove('chat');box.replaceChildren();document.querySelector('.stage').classList.add('withf');if(wasHidden)resize();
   const close=h('button',{class:'x','aria-label':'Fechar ficha',onclick:()=>openFicha(null)},'×');
   box.append(
     h('div',{class:'fhead'},h('div',{class:'big'},avatar(f,3)),h('div',{},h('h3',{},f.nome),h('p',{class:'muted'},f.cargo),h('p',{class:'muted small'},salaSetor(f.setor))),close),
     h('div',{class:'fstatus',id:'fstatus'}),
     h('div',{class:'now',id:'fnow'}),
+    h('button',{class:'cta sm wide',onclick:()=>openChat(f.id)},`Conversar com ${primeiro(f.nome)}`),
     h('section',{},h('h4',{},'Sobre'),h('p',{},f.bio||'')),
     h('section',{},h('h4',{},'O que faz'),h('ul',{class:'faz'},(f.faz||[]).map(x=>h('li',{},x)))),
     h('section',{},h('h4',{},'Hobbies'),h('div',{class:'chips'},(f.hobbies||[]).map(x=>h('span',{class:'chip'},x)))),
@@ -277,7 +278,7 @@ function openFicha(id){
   if(me&&!demo)loadTasks(id);
 }
 function updateFicha(full){
-  const f=funcById(selected);if(!f||el('ficha').hidden)return;
+  const f=funcById(selected);if(!f||el('ficha').hidden||chatFor)return;
   const[cls,txt]=statusOf(f);
   el('fstatus').replaceChildren(h('span',{class:'st'},h('span',{class:'dot '+cls}),txt),h('span',{class:'muted'},'Turno: '+f.turno));
   const now=el('fnow');
@@ -360,6 +361,50 @@ async function api(path,body){
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(j.erro||'Não foi possível concluir.');
   return j;
+}
+
+/* ---------- conversa com o agente ---------- */
+let chatFor=null,chatMsgs=[],chatBusy=false;
+function mdLite(t){ // texto do agente: parágrafos, **negrito** e listas simples, sem HTML
+  const out=document.createDocumentFragment();
+  t.split(/\n{2,}/).forEach(par=>{const p=h('p',{});par.split('\n').forEach((line,i)=>{if(i)p.append(h('br',{}));line.split(/(\*\*[^*]+\*\*)/).forEach(seg=>{/^\*\*[^*]+\*\*$/.test(seg)?p.append(h('b',{},seg.slice(2,-2))):p.append(seg)})});out.append(p)});
+  return out;
+}
+function renderChat(){
+  const box=el('cmsgs');if(!box)return;const f=funcById(chatFor);box.replaceChildren();
+  if(!chatMsgs.length)box.append(h('div',{class:'cempty'},h('div',{class:'big'},avatar(f,3)),h('p',{},`Diga oi para ${primeiro(f.nome)}.`),h('p',{class:'muted small'},'Peça ajuda, tire dúvidas ou passe uma atividade. Quando for trabalho de verdade, a tarefa entra na fila.')));
+  chatMsgs.forEach(m=>{
+    const b=h('div',{class:'msg '+(m.de==='eu'?'eu':'ag')});
+    m.de==='eu'?b.append(m.texto):b.append(mdLite(m.texto));
+    (m.tarefas||[]).forEach(t=>b.append(h('div',{class:'tchip'},'Tarefa na fila: '+t)));
+    box.append(b);
+  });
+  if(chatBusy)box.append(h('div',{class:'msg ag typing'},h('i',{}),h('i',{}),h('i',{})));
+  box.scrollTop=box.scrollHeight;
+}
+async function openChat(id){
+  if(!me){openLogin();return}
+  if(demo){alert('Desligue o modo demonstração para conversar.');return}
+  const f=funcById(id);if(!f)return;chatFor=id;chatMsgs=[];chatBusy=false;
+  const box=el('ficha');box.replaceChildren();box.classList.add('chat');
+  const ta=h('textarea',{id:'cin',rows:1,maxlength:6000,placeholder:`Mensagem para ${primeiro(f.nome)}…`});
+  const send=h('button',{class:'cta sm'},'Enviar');
+  const form=h('form',{class:'cform'},ta,send);
+  const err=h('p',{class:'cerr',id:'cerr'});
+  box.append(
+    h('div',{class:'chead'},h('button',{class:'ghost sm',onclick:()=>{box.classList.remove('chat');openFicha(id)}},'← Perfil'),h('div',{class:'av'},avatar(f,1.45)),h('div',{class:'who'},h('b',{},f.nome),h('span',{},f.cargo)),
+      h('button',{class:'ghost sm',title:'Apagar esta conversa',onclick:async()=>{if(!confirm('Apagar a conversa com '+primeiro(f.nome)+'?'))return;await api('/api/chat/limpar',{func:id});chatMsgs=[];renderChat()}},'Limpar'),
+      h('button',{class:'x','aria-label':'Fechar',onclick:()=>{box.classList.remove('chat');openFicha(null)}},'×')),
+    h('div',{class:'cmsgs',id:'cmsgs','aria-live':'polite'}),err,form);
+  form.onsubmit=async e=>{e.preventDefault();const txt=ta.value.trim();if(!txt||chatBusy)return;
+    err.textContent='';ta.value='';ta.style.height='';chatMsgs.push({de:'eu',texto:txt});chatBusy=true;send.disabled=true;renderChat();
+    try{const r=await api('/api/chat',{func:id,mensagem:txt});if(chatFor!==id)return;chatMsgs.push(r);if(r.tarefas)log(`${primeiro(f.nome)} colocou na fila: ${r.tarefas.join(', ')}`)}
+    catch(ex){if(chatFor!==id)return;chatMsgs.pop();ta.value=txt;err.textContent=ex.message}
+    chatBusy=false;send.disabled=false;renderChat();ta.focus()};
+  ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}};
+  ta.oninput=()=>{ta.style.height='';ta.style.height=Math.min(140,ta.scrollHeight)+'px'};
+  renderChat();ta.focus();
+  try{const r=await fetch('/api/chat?func='+encodeURIComponent(id),{cache:'no-store'});const j=await r.json();if(chatFor!==id)return;chatMsgs=j.mensagens||[];if(!j.ativo)err.textContent='A conversa ainda não está ligada: falta a chave da API no Render.';renderChat()}catch{}
 }
 
 /* ---------- login ---------- */
