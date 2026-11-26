@@ -16,7 +16,8 @@ http.createServer(async(req,res)=>{
     if(path==='/api/team'){
       const now=Date.now();
       for(const [k,v] of sessions)if(now-v.time>600000)sessions.delete(k);
-      return reply(200,JSON.stringify(team.map(a=>({...a,active:[...sessions.values()].some(s=>s.role===a.id)}))));
+      const all=[...sessions.values()];
+      return reply(200,JSON.stringify(team.map(a=>{const count=all.filter(s=>s.role===a.id).length;return{...a,active:count>0,count}})));
     }
   }
   if(req.method==='POST'&&path==='/api/event'){
