@@ -115,13 +115,14 @@ try {
   ]);
 
   /* ---------- a secretária ---------- */
-  let actor = null, mixer = null, acts = {}, cur = '', busy = false, modelName = null;
+  let tagY = 1.2, actor = null, mixer = null, acts = {}, cur = '', busy = false, modelName = null;
   function play(n) { if (!acts[n] || cur === n) return; acts[n].reset().fadeIn(.3).play(); if (acts[cur]) acts[cur].fadeOut(.3); cur = n; }
   R.setModel = async m => {
     if (!m || m === modelName) return; modelName = m;
     try {
       const g = await load(`/models/c/${m}.glb`); if (actor) scene.remove(actor);
-      actor = cloneSkinned(g.scene); actor.scale.setScalar(1.22); actor.position.set(CX - .25, .2, CZ - .5); actor.rotation.y = .12;
+      let real = false; g.scene.traverse(n => { if (n.userData && n.userData.real) real = true; });
+      actor = cloneSkinned(g.scene); actor.scale.setScalar(1.22); actor.position.set(CX - .25, real ? 0 : .2, CZ - .5); actor.rotation.y = .12; tagY = real ? 1.22 : 1.2;
       actor.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; } }); scene.add(actor);
       mixer = new THREE.AnimationMixer(actor); acts = {}; cur = '';
       for (const n of ['idle', 'interact-right', 'emote-yes']) { const c = g.animations.find(a => a.name === n); if (c) acts[n] = mixer.clipAction(c); }
@@ -148,7 +149,7 @@ try {
       const want = new THREE.Vector3(TARGET.x + Math.sin(base + a) * r, HOME.y, TARGET.z + Math.cos(base + a) * r); camera.position.lerp(want, .015); }
     led.intensity = 7 + Math.sin(t * 1.3) * .8;
     controls.update(); renderer.render(scene, camera);
-    if (tag && actor) { v3.set(actor.position.x, 1.2, actor.position.z).project(camera); tag.style.transform = `translate(-50%,-100%) translate(${((v3.x + 1) / 2 * Wd).toFixed(1)}px,${((1 - v3.y) / 2 * Hd).toFixed(1)}px)`; tag.hidden = v3.z > 1; }
+    if (tag && actor) { v3.set(actor.position.x, tagY, actor.position.z).project(camera); tag.style.transform = `translate(-50%,-100%) translate(${((v3.x + 1) / 2 * Wd).toFixed(1)}px,${((1 - v3.y) / 2 * Hd).toFixed(1)}px)`; tag.hidden = v3.z > 1; }
   }
   R.start = () => { if (running) return; running = true; clock.getDelta(); Wd = 0; loop(); };
   R.stop = () => { running = false; cancelAnimationFrame(raf); };

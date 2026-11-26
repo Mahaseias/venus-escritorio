@@ -151,7 +151,8 @@ function plan(c,now){
   if(c.mseat){c.meet=null;c.mseat=null;c.sit=false;c.nextIdle=0}
   if(working(f)){
     if(!c.working){c.working=true;release(c);const s=seatOf(c);if(s)goTile(c,s.tx,s.ty,{x:s.x,y:s.y})}
-  }else if(c.working||(!c.spot&&!c.path.length&&!c.final))toIdle(c,now);
+  }else if(c.working){c.working=false;toIdle(c,now)}
+  else if(!c.spot&&!c.path.length&&!c.final)toIdle(c,now);
   else if(now>c.nextIdle&&!c.path.length&&!c.final)toIdle(c,now);
   if(!c.working&&!c.nextIdle)c.nextIdle=now+20000+Math.random()*25000;
 }

@@ -147,13 +147,14 @@ try {
   const actors = new Map(), portraits = new Map();
   const ring = new THREE.Mesh(new THREE.RingGeometry(.3, .38, 40), new THREE.MeshBasicMaterial({color: '#c9a6f2', transparent: true, opacity: .9, side: THREE.DoubleSide}));
   ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
+  const isReal = g => { let r = false; g.scene.traverse(n => { if (n.userData && n.userData.real) r = true; }); return r; };   // modelos realistas (Hunyuan3D + Mixamo)
   function makePortrait(model, gltf) {
     try {
       const r = new THREE.WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true}); r.setSize(192, 240, false);
       const s = new THREE.Scene(); s.add(new THREE.HemisphereLight(0xffffff, 0x9988bb, 1.6)); const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(1, 2, 3); s.add(d);
       const o = cloneSkinned(gltf.scene); s.add(o);
       const mx = new THREE.AnimationMixer(o), clip = gltf.animations.find(a => a.name === 'idle'); if (clip) { mx.clipAction(clip).play(); mx.update(.4); }
-      const cam = new THREE.PerspectiveCamera(26, 192 / 240, .1, 10); cam.position.set(.5, .75, 2.1); cam.lookAt(0, .44, 0);
+      const cam = new THREE.PerspectiveCamera(26, 192 / 240, .1, 10); if (isReal(gltf)) { cam.position.set(.14, .8, .68); cam.lookAt(0, .78, 0); } else { cam.position.set(.5, .75, 2.1); cam.lookAt(0, .44, 0); }
       r.render(s, cam); portraits.set(model, r.domElement.toDataURL('image/png')); r.dispose(); r.forceContextLoss();
     } catch { /* sem retrato: a lista usa a inicial */ }
   }
@@ -162,7 +163,7 @@ try {
     a.obj.position.set(c.x, 0, c.z); a.obj.rotation.y = DIR[c.dir] ?? 0; scene.add(a.obj);
     load(`/models/c/${c.model || 'character-male-a'}.glb`).then(g => {
       const o = cloneSkinned(g.scene); o.scale.setScalar(CS); o.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; } });
-      a.obj.add(o); a.inner = o; a.mixer = new THREE.AnimationMixer(o); a.acts = {};
+      a.obj.add(o); a.inner = o; if (isReal(g)) a.sitHip = .28; a.mixer = new THREE.AnimationMixer(o); a.acts = {};
       for (const n of ['idle', 'walk', 'sit', 'interact-right']) { const clip = g.animations.find(x => x.name === n); if (clip) a.acts[n] = a.mixer.clipAction(clip); }
       a.ready = true;
       if (!portraits.has(c.model)) { makePortrait(c.model, g); dispatchEvent(new Event('v3d-ready')); }
@@ -190,7 +191,7 @@ try {
       seen.add(c.id); const a = actors.get(c.id) || spawn(c);
       const seated = c.sit && !c.moving;
       a.obj.position.x += (c.x - a.obj.position.x) * Math.min(1, dt * 18); a.obj.position.z += (c.z - a.obj.position.z) * Math.min(1, dt * 18);
-      const ty = seated ? Math.max(0, c.sh - SIT_HIP) : 0; a.obj.position.y += (ty - a.obj.position.y) * Math.min(1, dt * 10);
+      const ty = seated ? Math.max(0, c.sh - (a.sitHip ?? SIT_HIP)) : 0; a.obj.position.y += (ty - a.obj.position.y) * Math.min(1, dt * 10);
       let d = (DIR[c.dir] ?? 0) - a.obj.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); a.obj.rotation.y += d * Math.min(1, dt * 12);
       play(a, c.moving ? 'walk' : seated ? 'sit' : 'idle'); if (a.mixer) a.mixer.update(dt);
     }

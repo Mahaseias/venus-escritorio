@@ -500,7 +500,7 @@ setInterval(tickReunioes, 30000);
 const pubReuniao = ({pg, ...r}) => r, pubRecado = ({pg, ...r}) => r;
 
 /* ---------- http ---------- */
-const CSP = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'self' https://venustecnologia.com.br https://*.venustecnologia.com.br";
+const CSP = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' blob: data:; frame-ancestors 'self' https://venustecnologia.com.br https://*.venustecnologia.com.br";
 async function readJSON(req, max = 8192) {
   let body = '';
   for await (const chunk of req) { body += chunk; if (body.length > max) throw Object.assign(new Error('grande'), {code: 413}); }
