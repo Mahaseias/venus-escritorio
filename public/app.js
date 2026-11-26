@@ -31,7 +31,7 @@ ROOMS.forEach((r,ri)=>r.desks.forEach(cx=>{
   F('chairDesk',cx,SEAT_Y+.1,{r:180,c:['#f0946e','#c78ae0','#4fb8bd'][ri]});
 }));
 // recepção
-F('rugRound',7,7.8,{s:1.7,c:'#7c5bb0'});F('loungeSofa',1.7,8,{r:90,s:1.5,c:'#8d6bc2',b:[1,7,1,9]});F('loungeSofa',4.2,10.3,{r:180,s:1.5,c:'#8d6bc2',b:[3,10,5,10]});
+F('rugRound',7,7.8,{s:1.7,c:'#7c5bb0'});F('loungeSofa',1.6,7.8,{r:90,s:1.05,c:'#8d6bc2',b:[1,7,1,9]});F('loungeSofa',4.6,10.4,{r:180,s:1.05,c:'#8d6bc2',b:[3,10,5,10]});
 F('pottedPlant',12.4,10.4,{b:[12,10,12,10]});F('pottedPlant',1.5,10.4,{b:[1,10,1,10]});F('cabinetTelevision',12.45,7.5,{r:-90,b:[12,7,12,8]});F('televisionModern',12.45,7.5,{r:-90,e:.4});
 F('plantSmall1',12.3,3.5,{e:0,s:2.2,b:[12,3,12,3]});F('coatRackStanding',1.5,5.8,{b:[1,5,1,5]});
 // marketing
@@ -51,8 +51,8 @@ F('kitchenFridge',1.8,17.45,{b:[1,17,2,17]});
 block[17][3]=block[17][4]=block[17][5]=block[17][6]=block[17][7]=true;
 F('kitchenCoffeeMachine',3.3,17.45,{e:.59});F('kitchenMicrowave',6.6,17.45,{e:.59});F('toaster',5.5,17.45,{e:.59});
 F('tableRound',15,18.6,{b:[14,18,15,18]});F('stoolBar',13.3,18.6,{});F('stoolBar',16.7,18.6,{});F('plantSmall2',15,18.6,{e:.48,s:1.4});
-F('loungeSofa',4.5,19.5,{s:1.6,c:'#7c5bb0',b:[3,19,5,19]});F('rugRectangle',4.5,21.2,{s:1.5,c:'#c87f5a'});F('tableCoffee',4.5,21.6,{b:[4,21,4,21]});
-F('loungeSofa',20.2,21.2,{r:-90,s:1.4,c:'#3f8f9c',b:[20,21,20,22]});F('pottedPlant',1.5,22.4,{b:[1,22,1,22]});F('pottedPlant',20.4,17.5,{b:[20,17,20,17]});
+F('loungeSofa',4.5,19.5,{s:1.15,c:'#7c5bb0',b:[3,19,5,19]});F('rugRectangle',4.5,21.2,{s:1.5,c:'#c87f5a'});F('tableCoffee',4.5,21.6,{b:[4,21,4,21]});
+F('loungeSofa',20.3,21.2,{r:-90,s:1.05,c:'#3f8f9c',b:[20,21,20,22]});F('pottedPlant',1.5,22.4,{b:[1,22,1,22]});F('pottedPlant',20.4,17.5,{b:[20,17,20,17]});
 F('televisionModern',17.5,16.5,{e:.5,s:1.5});F('lampSquareFloor',1.5,19.5,{b:[1,19,1,19]});
 // reunião
 F('table',30,19.9,{s:[4.2,1.3,3.0],b:[27,19,32,20]});
@@ -66,7 +66,7 @@ const SH={chair:.33,sofa:.36,stool:.52}; // altura dos assentos (unidades 3D)
 const IDLE=[
   {x:3,y:18,d:'u',ic:'cafe'},{x:4,y:18,d:'u',ic:'agua'},{x:6,y:18,d:'u',ic:'cafe'},
   {x:13,y:19,d:'r',ic:'papo',sit:1,sh:SH.stool,fx:13.3*T,fy:18.6*T},{x:16,y:19,d:'l',ic:'papo',sit:1,sh:SH.stool,fx:16.7*T,fy:18.6*T},
-  {x:3,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:3.6*T,fy:19.75*T},{x:4,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:4.5*T,fy:19.75*T},{x:5,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:5.4*T,fy:19.75*T},
+  {x:3,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:3.8*T,fy:19.7*T},{x:4,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:4.5*T,fy:19.7*T},{x:5,y:20,d:'d',ic:'zz',sit:1,sh:SH.sofa,fx:5.2*T,fy:19.7*T},
   {x:9,y:20,d:'r',ic:'papo'},{x:10,y:20,d:'l',ic:'papo'},{x:16,y:21,d:'r',ic:'papo'},{x:17,y:21,d:'l',ic:'papo'}
 ];
 const spotPos=s=>({x:s.fx??s.x*T+8,y:s.fy??s.y*T+8});
