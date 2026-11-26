@@ -417,7 +417,7 @@ async function openChat(id){
 }
 
 /* ---------- recepção: a secretária atende visitantes ---------- */
-let rStage='inicio',rMsgs=[],rBusy=false,rLoaded=false,rErr='';
+let rStage='inicio',mMsgs=[],rMsgs=[],rBusy=false,rLoaded=false,rErr='';
 addEventListener('r3d-ready',()=>{if(rec&&window.R3D)window.R3D.setModel(rec.modelo);if(place==='rec')window.R3D.start()});
 function openReception(){
   if(window.R3D&&rec)window.R3D.setModel(rec.modelo);
@@ -432,9 +432,24 @@ function renderReception(){
   box.replaceChildren(h('div',{class:'chead'},h('div',{class:'av'},avatar(s,1.45)),h('div',{class:'who'},h('b',{},s.nome),h('span',{},'Recepção da Venus · assistente de IA'))),msgs);
   if(me){
     fala(`Oi, ${primeiro(me.nome)}! Que bom te ver. O pessoal está lá dentro.`);
-    msgs.append(h('div',{class:'choice'},h('button',{onclick:()=>go('dentro')},'Entrar no escritório →',h('span',{},'Ver a equipe, as reuniões e os recados'))));
+    if(rStage!=='membro'){
+      msgs.append(h('div',{class:'choice'},h('button',{onclick:()=>go('dentro')},'Entrar no escritório →',h('span',{},'Ver a equipe, as reuniões e os recados')),
+        h('button',{onclick:async()=>{rStage='membro';rErr='';renderReception();try{const j=await(await fetch('/api/chat?func='+encodeURIComponent(s.id),{cache:'no-store'})).json();mMsgs=j.mensagens||[];if(!j.ativo)rErr='A conversa ainda não está ligada: falta a chave da API.'}catch{}renderReception()}},`Conversar com a ${nome}`,h('span',{},'Conversa interna, como membro da equipe'))));
+      return;
+    }
+    mMsgs.forEach(m=>{if(m.de==='eu')msgs.append(h('div',{class:'msg eu'},m.texto));else{const b=fala(m.texto);(m.tarefas||[]).forEach(t=>b.append(h('div',{class:'tchip'},'Tarefa na fila: '+t)))}});
+    if(rBusy)msgs.append(h('div',{class:'msg ag typing'},h('i',{}),h('i',{}),h('i',{})));
+    const ta=h('textarea',{rows:1,maxlength:6000,placeholder:`Mensagem para ${nome}…`}),send=h('button',{class:'cta sm'},'Enviar'),f=h('form',{class:'cform'},ta,send);
+    f.onsubmit=async e=>{e.preventDefault();const txt=ta.value.trim();if(!txt||rBusy)return;rErr='';mMsgs.push({de:'eu',texto:txt});rBusy=true;if(window.R3D)window.R3D.talk(true);renderReception();let back='';
+      try{mMsgs.push(await api('/api/chat',{func:s.id,mensagem:txt}))}catch(ex){mMsgs.pop();rErr=ex.message;back=txt}
+      rBusy=false;if(window.R3D)window.R3D.talk(false);renderReception();const t2=el('rpanel').querySelector('.cform textarea');if(t2){t2.value=back;t2.focus()}};
+    ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();f.requestSubmit()}};
+    ta.oninput=()=>{ta.style.height='';ta.style.height=Math.min(120,ta.scrollHeight)+'px'};
+    box.append(h('p',{class:'cerr',role:'alert'},rErr),f,h('p',{class:'rfoot'},h('button',{class:'ghost sm',onclick:()=>{rStage='inicio';rErr='';renderReception()}},'← Voltar'),' ',h('button',{class:'ghost sm',onclick:()=>go('dentro')},'Entrar no escritório →')));
+    msgs.scrollTop=msgs.scrollHeight;if(!rBusy)ta.focus();
     return;
   }
+  if(rStage==='membro')rStage='inicio';
   fala(`Olá! Seja bem-vindo à Venus Tecnologia. Eu sou a ${nome}, da recepção. Você está nos visitando ou faz parte da equipe?`);
   if(rStage==='inicio'){
     msgs.append(h('div',{class:'choice'},

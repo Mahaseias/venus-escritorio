@@ -233,10 +233,10 @@ function turnoTexto(t) {
 const pubTask = t => ({ordem: t.ordem ?? t.criada, id: t.id, func: t.func, titulo: t.titulo, texto: t.texto, autor: t.autor, status: t.status, criada: t.criada, iniciada: t.iniciada || null, concluida: t.concluida || null, resultado: t.resultado || ''});
 function office(user) {
   if (!user) return {agora: Date.now(), fuso: TZ, logado: null, setores: [], funcionarios: [],
-    recepcao: {nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY}};
+    recepcao: {id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY}};
   const ativos = estado(), ra = reuniaoAtiva();
   return {
-    recepcao: {nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY},
+    recepcao: {id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY},
     reuniao: ra ? {nome: ra.nome, participantes: ra.participantes, ate: ra.desde + REUNIAO_MIN * 60000} : null,
     pendencias: {propostas: reunioes.reduce((n, r) => n + r.propostas.filter(p => p.status === 'pendente').length, 0), recados: recados.filter(r => !r.visto).length},
     agora: Date.now(), fuso: TZ, setores: SETORES, notion: user ? (NOTION_TOKEN ? (notionOk ? 'ok' : 'erro') : 'desligado') : undefined,
