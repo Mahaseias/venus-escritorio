@@ -1,0 +1,70 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"/CAMINHO/venus/hook.py\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"/CAMINHO/venus/hook.py\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"/CAMINHO/venus/hook.py\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"/CAMINHO/venus/hook.py\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"/CAMINHO/venus/hook.py\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"/CAMINHO/venus/hook.py\"",
+            "async": false
+          }
+        ]
+      }
+    ]
+  }
+}

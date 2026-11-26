@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: venus-escritorio
+    runtime: node
+    plan: free
+    buildCommand: node --check server.mjs
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    envVars:
+      - key: OFFICE_TOKEN
+        generateValue: true
