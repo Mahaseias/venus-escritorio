@@ -10,6 +10,8 @@ const STATIC = {
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/fachada.jpg': ['fachada.jpg', 'image/jpeg'],
   '/sprites.png': ['sprites.png', 'image/png'],
+  '/escritorio-dia.jpg': ['escritorio-dia.jpg', 'image/jpeg'],
+  '/escritorio-noite.jpg': ['escritorio-noite.jpg', 'image/jpeg'],
   '/sprites.json': ['sprites.json', 'application/json; charset=utf-8']
 };
 const files = Object.fromEntries(Object.entries(STATIC).map(([k, [f, t]]) => [k, [readFileSync(pub(f)), t]]));
