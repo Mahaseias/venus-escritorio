@@ -8,7 +8,9 @@ const pub = f => new URL('./public/' + f, import.meta.url);
 const STATIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
-  '/fachada.jpg': ['fachada.jpg', 'image/jpeg']
+  '/fachada.jpg': ['fachada.jpg', 'image/jpeg'],
+  '/sprites.png': ['sprites.png', 'image/png'],
+  '/sprites.json': ['sprites.json', 'application/json; charset=utf-8']
 };
 const files = Object.fromEntries(Object.entries(STATIC).map(([k, [f, t]]) => [k, [readFileSync(pub(f)), t]]));
 const cfg = JSON.parse(readFileSync(pub('agents.json')));

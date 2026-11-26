@@ -3,3 +3,6 @@ worker/config.json
 worker/areas/
 state.json
 node_modules/
+tools/sprites/in/
+tools/sprites/*.png
+tools/sprites/*.json
