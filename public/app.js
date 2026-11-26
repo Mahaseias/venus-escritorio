@@ -9,12 +9,12 @@ el('enter').onclick=()=>visit(true);el('back').onclick=()=>visit(false);
 const ATLAS=new Image();let SPR={};
 ATLAS.onload=()=>{if(typeof renderList==='function')renderList()};ATLAS.src='/sprites.png';
 fetch('/sprites.json').then(r=>r.json()).then(j=>{SPR=j;try{renderList()}catch{}}).catch(()=>{});
-const spriteOk=id=>SPR[id]&&ATLAS.complete&&ATLAS.naturalWidth>0;
+const spriteOk=id=>id&&id[0]!=='_'&&SPR[id]&&ATLAS.complete&&ATLAS.naturalWidth>0;
 function drawSprite(c,t,sp){
   const x=Math.round(c.x),y=Math.round(c.y),moving=c.path.length>0||!!c.final;
   if(c.dir==='l'||c.dir==='r')c.lastSide=c.dir;
   let key,flip=false,dy=0;
-  if(c.sit&&c.working){const k=Math.floor(t/1000+c.idx*7)%14;key=(sp.sit2&&k===0)?'sit2':(Math.floor(t/260+c.idx)%2?'sit1':'sit0');dy=17}
+  if(c.sit&&c.working){const k=Math.floor(t/1000+c.idx*7)%14;key=(sp.sit2&&k===0)?'sit2':(Math.floor(t/260+c.idx)%2?'sit1':'sit0');dy=19}
   else if(c.sit&&c.dir==='d'){key='sofa';dy=1}
   else{
     let d=c.dir;if(d==='u'&&!sp.up0)d=c.lastSide||'r';
@@ -22,11 +22,14 @@ function drawSprite(c,t,sp){
     if(moving){key=base+[1,0,2,0][Math.floor(c.dist/6)%4]}
     else key=(base==='down'&&sp.blink&&Math.floor(t/140+c.idx*17)%36===0)?'blink':base+'0';
   }
-  const f=sp[key]||sp.down0,[sx,sy,w,h,ax]=f;
+  const f=sp[key]||sp.down0,[sx,sy,w,h,ax]=f,K=SPR._scale||1,dw=w/K,dh=h/K,da=ax/K;
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.fillRect(x-6,y+dy-1,12,2);ctx.fillRect(x-5,y+dy+1,10,1);
-  if(flip){ctx.save();ctx.translate(x,0);ctx.scale(-1,1);ctx.drawImage(ATLAS,sx,sy,w,h,-ax,y+dy-h,w,h);ctx.restore()}
-  else ctx.drawImage(ATLAS,sx,sy,w,h,x-ax,y+dy-h,w,h);
-  c._h=h-dy;
+  // o boneco é guardado em alta resolução e reduzido aqui com suavização de qualidade
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  if(flip){ctx.translate(x,0);ctx.scale(-1,1);ctx.drawImage(ATLAS,sx,sy,w,h,-da,y+dy-dh,dw,dh)}
+  else ctx.drawImage(ATLAS,sx,sy,w,h,x-da,y+dy-dh,dw,dh);
+  ctx.restore();
+  c._h=dh-dy;
 }
 
 /* ---------- mapa ---------- */
@@ -371,7 +374,7 @@ function draw(t){
   }));
   const items=[];
   seats.forEach(s=>{if(!s.occ)items.push({y:s.y,f:()=>chairBack(s.x,s.y,s.col,false)})});
-  chars.forEach(c=>items.push({y:c.y+(c.sit&&c.working?17:0),f:()=>{
+  chars.forEach(c=>items.push({y:c.y+(c.sit&&c.working?19:0),f:()=>{
     ctx=g;
     if(selected===c.id){R(Math.round(c.x)-7,Math.round(c.y)-1,14,3,'rgba(201,166,242,.7)')}
     drawChar(c,t);
@@ -412,7 +415,7 @@ function draw(t){
 
 /* ---------- avatar pequeno (ficha e lista) ---------- */
 function avatar(f,scale=3){
-  if(spriteOk(f.id)){const[sx,sy,w,h]=SPR[f.id].down0;const c=document.createElement('canvas');c.width=w;c.height=h;c.className='pxav';const k=scale*0.75;c.style.width=w*k+'px';c.style.height=h*k+'px';const x=c.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(ATLAS,sx,sy,w,h,0,0,w,h);return c}
+  if(spriteOk(f.id)){const[sx,sy,w,h]=SPR[f.id].down0;const c=document.createElement('canvas');c.width=w;c.height=h;c.className='hdav';const ch=26*scale;c.style.height=ch+'px';c.style.width=(w*ch/h)+'px';c.getContext('2d').drawImage(ATLAS,sx,sy,w,h,0,0,w,h);return c}
   const c=document.createElement('canvas');c.width=20;c.height=26;c.className='pxav';c.style.width=20*scale+'px';c.style.height=26*scale+'px';
   const prev=ctx;ctx=c.getContext('2d');
   const ap=f.aparencia||{};
