@@ -48,6 +48,10 @@ try {
     const spaced = (txt, y, size, gap, weight) => { x.font = `${weight} ${size}px "Helvetica Neue",Helvetica,Arial,sans-serif`; const ws = [...txt].map(ch => x.measureText(ch).width); let px = (w - ws.reduce((a, b) => a + b, 0) - gap * (txt.length - 1)) / 2;
       [...txt].forEach((ch, i) => { x.fillText(ch, px + ws[i] / 2, y); px += ws[i] + gap; }); };
     spaced('VENUS', 120, 170, 26, 300); spaced('TECNOLOGIA', 262, 54, 30, 400); });
+  R.setEmpresa = nome => { // letreiro de outra empresa: primeira palavra grande, o resto embaixo
+    const p = String(nome || '').trim().toUpperCase().split(/\s+/), a = p.shift() || '', b = p.join(' '), x = signT.image.getContext('2d'), w = 1024, h = 320; x.clearRect(0, 0, w, h); x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    const fit = (t, y, size, weight) => { do { x.font = `${weight} ${size}px "Helvetica Neue",Helvetica,Arial,sans-serif`; size -= 6; } while (x.measureText(t).width > w - 60 && size > 20); x.fillText(t, w / 2, y); };
+    fit(a, b ? 120 : 160, 170, 300); if (b) fit(b, 262, 54, 400); signT.needsUpdate = true; };
   const halo = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 1.05), new THREE.MeshBasicMaterial({map: signT, color: '#ffb866', transparent: true, opacity: .35, toneMapped: false}));
   halo.position.set(-1.55, 2.08, BZ + .012); halo.scale.set(1.03, 1.08, 1); scene.add(halo);
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 1.05), new THREE.MeshBasicMaterial({map: signT, color: '#fff3df', transparent: true, toneMapped: false}));

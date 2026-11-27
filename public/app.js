@@ -1,6 +1,7 @@
 // Escritório virtual da Venus — motor do mapa, personagens e painel
 (()=>{
 const el=id=>document.getElementById(id);
+const BASE=(/^\/e\/[a-z0-9-]{3,40}/.exec(location.pathname)||[''])[0]; // escritório de outra empresa: /e/nome
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let place='fora'; // fora (fachada) · rec (recepção, aberta a visitantes) · dentro (escritório, só equipe)
 function go(p){place=p;el('exterior').hidden=p!=='fora';el('recepcao').hidden=p!=='rec';el('interior').hidden=p!=='dentro';
@@ -283,7 +284,7 @@ function openFicha(id){
     h('section',{},h('h4',{},'Hobbies'),h('div',{class:'chips'},(f.hobbies||[]).map(x=>h('span',{class:'chip'},x)))),
     h('section',{id:'fagenda'}),
     h('section',{id:'ftasks'}),
-    f.dinamico&&me&&!demo?h('section',{},h('button',{class:'ghost sm',onclick:async()=>{if(!confirm(`Desligar ${f.nome} do escritório? As tarefas na fila dele serão canceladas.`))return;try{await api('/api/agentes',{id:f.id,acao:'desligar'});log(`${me.nome} desligou ${primeiro(f.nome)}`);openFicha(null);poll(true)}catch(e){alert(e.message)}}},'Desligar este agente')):''
+    f.dinamico&&me&&!demo?h('section',{},h('button',{class:'ghost sm',onclick:async()=>{if(!confirm(`Desligar ${f.nome} do escritório? As tarefas na fila dele serão canceladas.`))return;try{await api(BASE+'/api/agentes',{id:f.id,acao:'desligar'});log(`${me.nome} desligou ${primeiro(f.nome)}`);openFicha(null);poll(true)}catch(e){alert(e.message)}}},'Desligar este agente')):''
   );
   updateFicha(true);
   if(me&&!demo)loadTasks(id);
@@ -329,7 +330,7 @@ function renderTaskBox(f){
   const form=h('form',{class:'prompt'},ta,h('div',{class:'prow'},msg,btn));
   form.onsubmit=async e=>{e.preventDefault();const texto=ta.value.trim();if(texto.length<3){msg.textContent='Descreva a tarefa.';return}
     btn.disabled=true;msg.textContent='Enviando…';
-    try{const r=await api('/api/tasks',{func:f.id,texto});ta.value='';msg.textContent=worker&&worker.online?'Tarefa enviada.':'Tarefa na fila. O worker do PC de casa ainda não está conectado.';log(`${me.nome} enviou uma tarefa para ${primeiro(f.nome)}`);loadTasks(f.id)}
+    try{const r=await api(BASE+'/api/tasks',{func:f.id,texto});ta.value='';msg.textContent=worker&&worker.online?'Tarefa enviada.':'Tarefa na fila. O worker do PC de casa ainda não está conectado.';log(`${me.nome} enviou uma tarefa para ${primeiro(f.nome)}`);loadTasks(f.id)}
     catch(err){msg.textContent=err.message}btn.disabled=false};
   ta.onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))form.requestSubmit()};
   sec.append(form,h('ul',{class:'tasks',id:'tlist'}));
@@ -343,7 +344,7 @@ function renderTasks(){
   ul.replaceChildren();
   if(!list.length){ul.append(h('li',{class:'muted small nob'},'Nenhuma tarefa ainda.'));return}
   const fila=list.filter(t=>t.status==='fila'),agora=list.filter(t=>t.status==='andamento'),resto=list.filter(t=>t.status!=='fila'&&t.status!=='andamento');
-  const move=async(t,para,ev)=>{ev.stopPropagation();try{await api(`/api/tasks/${t.id}/mover`,{para});loadTasks(selected)}catch(e){alert(e.message)}};
+  const move=async(t,para,ev)=>{ev.stopPropagation();try{await api(BASE+`/api/tasks/${t.id}/mover`,{para});loadTasks(selected)}catch(e){alert(e.message)}};
   const item=(t,pos)=>{
     const[lab,cls]=ST[t.status]||[t.status,'q'];
     const ctrl=pos!=null?h('span',{class:'ord'},
@@ -353,7 +354,7 @@ function renderTasks(){
     const li=h('li',{'data-id':t.id,class:open.has(t.id)?'open':''},
       h('div',{class:'trow'+(pos!=null?' q':'')},pos!=null?h('span',{class:'pos'},String(pos+1)):h('span',{class:'tag '+cls},lab),h('span',{class:'tt'},t.titulo),ctrl||h('time',{},fmtDia(t.concluida||t.iniciada||t.criada))),
       h('div',{class:'tbody'},h('p',{class:'muted small'},`Pedido por ${t.autor} · ${fmtDia(t.criada)}`),h('pre',{},t.texto),t.resultado?h('div',{},h('b',{class:'small'},'Resultado'),h('pre',{class:'res'},t.resultado)):'',
-        t.status==='fila'?h('button',{class:'ghost sm',onclick:async ev=>{ev.stopPropagation();try{await api(`/api/tasks/${t.id}/cancelar`,{});loadTasks(selected)}catch(e){alert(e.message)}}},'Cancelar'):''));
+        t.status==='fila'?h('button',{class:'ghost sm',onclick:async ev=>{ev.stopPropagation();try{await api(BASE+`/api/tasks/${t.id}/cancelar`,{});loadTasks(selected)}catch(e){alert(e.message)}}},'Cancelar'):''));
     li.querySelector('.trow').onclick=()=>li.classList.toggle('open');
     return li;
   };
@@ -362,7 +363,7 @@ function renderTasks(){
   if(resto.length){ul.append(h('li',{class:'sub nob'},'Histórico'));resto.forEach(t=>ul.append(item(t,null)))}
 }
 async function loadTasks(id){
-  try{const r=await fetch('/api/tasks?func='+encodeURIComponent(id),{cache:'no-store'});if(!r.ok)throw 0;const list=await r.json();
+  try{const r=await fetch(BASE+'/api/tasks?func='+encodeURIComponent(id),{cache:'no-store'});if(!r.ok)throw 0;const list=await r.json();
     if(selected!==id)return;
     if(tasksFor===id){const old=Object.fromEntries(tasksCache.map(t=>[t.id,t.status]));list.forEach(t=>{if(old[t.id]&&old[t.id]!==t.status&&(t.status==='concluida'||t.status==='erro'))log(`${primeiro(funcById(id)?.nome||'')} ${t.status==='concluida'?'concluiu':'teve erro em'}: ${t.titulo}`)})}
     tasksCache=list;tasksFor=id;renderTasks()}catch{}
@@ -404,26 +405,26 @@ async function openChat(id){
   const err=h('p',{class:'cerr',id:'cerr'});
   box.append(
     h('div',{class:'chead'},h('button',{class:'ghost sm',onclick:()=>{box.classList.remove('chat');openFicha(id)}},'← Perfil'),h('div',{class:'av'},avatar(f,1.45)),h('div',{class:'who'},h('b',{},f.nome),h('span',{},f.cargo)),
-      h('button',{class:'ghost sm',title:'Apagar esta conversa',onclick:async()=>{if(!confirm('Apagar a conversa com '+primeiro(f.nome)+'?'))return;await api('/api/chat/limpar',{func:id});chatMsgs=[];renderChat()}},'Limpar'),
+      h('button',{class:'ghost sm',title:'Apagar esta conversa',onclick:async()=>{if(!confirm('Apagar a conversa com '+primeiro(f.nome)+'?'))return;await api(BASE+'/api/chat/limpar',{func:id});chatMsgs=[];renderChat()}},'Limpar'),
       h('button',{class:'x','aria-label':'Fechar',onclick:()=>{box.classList.remove('chat');openFicha(null)}},'×')),
     h('div',{class:'cmsgs',id:'cmsgs','aria-live':'polite'}),err,form);
   form.onsubmit=async e=>{e.preventDefault();const txt=ta.value.trim();if(!txt||chatBusy)return;
     err.textContent='';ta.value='';ta.style.height='';chatMsgs.push({de:'eu',texto:txt});chatBusy=true;send.disabled=true;renderChat();
-    try{const r=await api('/api/chat',{func:id,mensagem:txt});if(chatFor!==id)return;chatMsgs.push(r);if(r.tarefas)log(`${primeiro(f.nome)} colocou na fila: ${r.tarefas.join(', ')}`)}
+    try{const r=await api(BASE+'/api/chat',{func:id,mensagem:txt});if(chatFor!==id)return;chatMsgs.push(r);if(r.tarefas)log(`${primeiro(f.nome)} colocou na fila: ${r.tarefas.join(', ')}`)}
     catch(ex){if(chatFor!==id)return;chatMsgs.pop();ta.value=txt;err.textContent=ex.message}
     chatBusy=false;send.disabled=false;renderChat();ta.focus()};
   ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}};
   ta.oninput=()=>{ta.style.height='';ta.style.height=Math.min(140,ta.scrollHeight)+'px'};
   renderChat();ta.focus();
-  try{const r=await fetch('/api/chat?func='+encodeURIComponent(id),{cache:'no-store'});const j=await r.json();if(chatFor!==id)return;chatMsgs=j.mensagens||[];if(!j.ativo)err.textContent='A conversa ainda não está ligada: falta a chave da API no Render.';renderChat()}catch{}
+  try{const r=await fetch(BASE+'/api/chat?func='+encodeURIComponent(id),{cache:'no-store'});const j=await r.json();if(chatFor!==id)return;chatMsgs=j.mensagens||[];if(!j.ativo)err.textContent='A conversa ainda não está ligada: falta a chave da API no Render.';renderChat()}catch{}
 }
 
 /* ---------- recepção: a secretária atende visitantes ---------- */
 let rStage='inicio',mMsgs=[],rMsgs=[],rBusy=false,rLoaded=false,rErr='';
-addEventListener('r3d-ready',()=>{if(rec&&window.R3D)window.R3D.setModel(rec.modelo);if(place==='rec')window.R3D.start()});
+addEventListener('r3d-ready',()=>{if(rec&&window.R3D){window.R3D.setModel(rec.modelo);if(BASE&&rec.empresa)window.R3D.setEmpresa(rec.empresa)}if(place==='rec')window.R3D.start()});
 function openReception(){
   if(window.R3D&&rec)window.R3D.setModel(rec.modelo);
-  if(!rLoaded){rLoaded=true;fetch('/api/recepcao',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j.mensagens&&j.mensagens.length){rMsgs=j.mensagens;rStage='chat'}renderReception()}).catch(()=>{})}
+  if(!rLoaded){rLoaded=true;fetch(BASE+'/api/recepcao',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j.mensagens&&j.mensagens.length){rMsgs=j.mensagens;rStage='chat'}renderReception()}).catch(()=>{})}
   renderReception();
 }
 function renderReception(){
@@ -431,19 +432,19 @@ function renderReception(){
   el('rtagn').textContent=nome+' · recepção';
   const msgs=h('div',{class:'cmsgs','aria-live':'polite'});
   const fala=t=>{const b=h('div',{class:'msg ag'});b.append(mdLite(t));msgs.append(b);return b};
-  box.replaceChildren(h('div',{class:'chead'},h('div',{class:'av'},avatar(s,1.45)),h('div',{class:'who'},h('b',{},s.nome),h('span',{},'Recepção da Venus · assistente de IA')),rStage!=='inicio'?h('button',{class:'x','aria-label':'Fechar conversa',title:'Fechar conversa',onclick:()=>{rStage='inicio';rErr='';renderReception()}},'×'):''),msgs);
+  box.replaceChildren(h('div',{class:'chead'},h('div',{class:'av'},avatar(s,1.45)),h('div',{class:'who'},h('b',{},s.nome),h('span',{},'Recepção · assistente de IA')),rStage!=='inicio'?h('button',{class:'x','aria-label':'Fechar conversa',title:'Fechar conversa',onclick:()=>{rStage='inicio';rErr='';renderReception()}},'×'):''),msgs);
   if(me){
     fala(`Oi, ${primeiro(me.nome)}! Que bom te ver. O pessoal está lá dentro.`);
     if(rStage!=='membro'){
       msgs.append(h('div',{class:'choice'},h('button',{onclick:()=>go('dentro')},'Entrar no escritório →',h('span',{},'Ver a equipe, as reuniões e os recados')),
-        h('button',{onclick:async()=>{rStage='membro';rErr='';renderReception();try{const j=await(await fetch('/api/chat?func='+encodeURIComponent(s.id),{cache:'no-store'})).json();mMsgs=j.mensagens||[];if(!j.ativo)rErr='A conversa ainda não está ligada: falta a chave da API.'}catch{}renderReception()}},`Conversar com a ${nome}`,h('span',{},'Conversa interna, como membro da equipe'))));
+        h('button',{onclick:async()=>{rStage='membro';rErr='';renderReception();try{const j=await(await fetch(BASE+'/api/chat?func='+encodeURIComponent(s.id),{cache:'no-store'})).json();mMsgs=j.mensagens||[];if(!j.ativo)rErr='A conversa ainda não está ligada: falta a chave da API.'}catch{}renderReception()}},`Conversar com a ${nome}`,h('span',{},'Conversa interna, como membro da equipe'))));
       return;
     }
     mMsgs.forEach(m=>{if(m.de==='eu')msgs.append(h('div',{class:'msg eu'},m.texto));else{const b=fala(m.texto);(m.tarefas||[]).forEach(t=>b.append(h('div',{class:'tchip'},'Tarefa na fila: '+t)))}});
     if(rBusy)msgs.append(h('div',{class:'msg ag typing'},h('i',{}),h('i',{}),h('i',{})));
     const ta=h('textarea',{rows:1,maxlength:6000,placeholder:`Mensagem para ${nome}…`}),send=h('button',{class:'cta sm'},'Enviar'),f=h('form',{class:'cform'},ta,send);
     f.onsubmit=async e=>{e.preventDefault();const txt=ta.value.trim();if(!txt||rBusy)return;rErr='';mMsgs.push({de:'eu',texto:txt});rBusy=true;if(window.R3D)window.R3D.talk(true);renderReception();let back='';
-      try{mMsgs.push(await api('/api/chat',{func:s.id,mensagem:txt}))}catch(ex){mMsgs.pop();rErr=ex.message;back=txt}
+      try{mMsgs.push(await api(BASE+'/api/chat',{func:s.id,mensagem:txt}))}catch(ex){mMsgs.pop();rErr=ex.message;back=txt}
       rBusy=false;if(window.R3D)window.R3D.talk(false);renderReception();const t2=el('rpanel').querySelector('.cform textarea');if(t2){t2.value=back;t2.focus()}};
     ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();f.requestSubmit()}};
     ta.oninput=()=>{ta.style.height='';ta.style.height=Math.min(120,ta.scrollHeight)+'px'};
@@ -452,30 +453,30 @@ function renderReception(){
     return;
   }
   if(rStage==='membro')rStage='inicio';
-  fala(`Olá! Seja bem-vindo à Venus Tecnologia. Eu sou a ${nome}, da recepção. Você está nos visitando ou faz parte da equipe?`);
+  fala(`Olá! Seja bem-vindo à ${s.empresa||'Venus Tecnologia'}. Eu sou ${nome}, da recepção. Você está nos visitando ou faz parte da equipe?`);
   if(rStage==='inicio'){
     msgs.append(h('div',{class:'choice'},
-      h('button',{onclick:()=>{rStage='chat';renderReception()}},'Sou visitante',h('span',{},'Quero conhecer a Venus ou falar com a equipe')),
-      h('button',{onclick:openLogin},'Sou membro da Venus',h('span',{},'Entrar no escritório com meu acesso'))));
+      h('button',{onclick:()=>{rStage='chat';renderReception()}},'Sou visitante',h('span',{},BASE?'Quero conhecer a empresa ou falar com a equipe':'Quero conhecer a Venus ou falar com a equipe')),
+      h('button',{onclick:openLogin},BASE?'Sou da equipe':'Sou membro da Venus',h('span',{},'Entrar no escritório com meu acesso'))));
     return;
   }
   fala('Que bom ter você aqui! Me conta: o que você procura? Posso tirar dúvidas e anotar seu recado para a equipe.');
-  rMsgs.forEach(m=>{if(m.de==='eu')msgs.append(h('div',{class:'msg eu'},m.texto));else{const b=fala(m.texto);if(m.anotou)b.append(h('div',{class:'okchip'},'Recado anotado para a equipe da Venus'));if(m.comercial!=null&&s.comercial)b.append(h('a',{class:'wa',target:'_blank',rel:'noopener',href:'https://wa.me/'+s.comercial.whatsapp+'?text='+encodeURIComponent('Olá! Vim pela recepção virtual da Venus.'+(m.comercial?' Assunto: '+m.comercial:''))},'Falar com o Comercial no WhatsApp',h('span',{},s.comercial.exibicao)))}});
+  rMsgs.forEach(m=>{if(m.de==='eu')msgs.append(h('div',{class:'msg eu'},m.texto));else{const b=fala(m.texto);if(m.anotou)b.append(h('div',{class:'okchip'},'Recado anotado para a equipe'));if(m.comercial!=null&&s.comercial)b.append(h('a',{class:'wa',target:'_blank',rel:'noopener',href:'https://wa.me/'+s.comercial.whatsapp+'?text='+encodeURIComponent('Olá! Vim pela recepção virtual.'+(m.comercial?' Assunto: '+m.comercial:''))},'Falar com o Comercial no WhatsApp',h('span',{},s.comercial.exibicao)))}});
   if(rBusy)msgs.append(h('div',{class:'msg ag typing'},h('i',{}),h('i',{}),h('i',{})));
   const err=h('p',{class:'cerr',role:'alert'},rErr);
   if(rStage==='form'||rStage==='enviado'){
-    if(rStage==='enviado'){fala('Recado anotado! A equipe da Venus retorna em horário comercial. Obrigada pela visita.');box.append(h('p',{class:'rfoot'},h('button',{class:'ghost sm',onclick:()=>{rStage='chat';rErr='';renderReception()}},'Voltar para a conversa')))}
+    if(rStage==='enviado'){fala('Recado anotado! A equipe retorna em horário comercial. Obrigada pela visita.');box.append(h('p',{class:'rfoot'},h('button',{class:'ghost sm',onclick:()=>{rStage='chat';rErr='';renderReception()}},'Voltar para a conversa')))}
     else{
       const n=h('input',{placeholder:'Seu nome',maxlength:80,required:true,autocomplete:'name'}),c=h('input',{placeholder:'WhatsApp ou e-mail',maxlength:120,required:true}),m=h('textarea',{placeholder:'Como a Venus pode ajudar?',rows:3,maxlength:1500,required:true}),b=h('button',{class:'cta sm'},'Deixar recado');
       const f=h('form',{class:'rform'},n,c,m,h('div',{class:'prow'},h('button',{type:'button',class:'ghost sm',onclick:()=>{rStage='chat';rErr='';renderReception()}},'← Conversa'),b));
-      f.onsubmit=async e=>{e.preventDefault();b.disabled=true;try{await api('/api/recepcao/recado',{nome:n.value,contato:c.value,mensagem:m.value});rStage='enviado';rErr=''}catch(ex){rErr=ex.message}renderReception()};
+      f.onsubmit=async e=>{e.preventDefault();b.disabled=true;try{await api(BASE+'/api/recepcao/recado',{nome:n.value,contato:c.value,mensagem:m.value});rStage='enviado';rErr=''}catch(ex){rErr=ex.message}renderReception()};
       box.append(err,f);
     }
   }else{
     const ta=h('textarea',{rows:1,maxlength:800,placeholder:`Escreva para ${nome}…`}),send=h('button',{class:'cta sm'},'Enviar');
     const f=h('form',{class:'cform'},ta,send);
     f.onsubmit=async e=>{e.preventDefault();const txt=ta.value.trim();if(!txt||rBusy)return;rErr='';rMsgs.push({de:'eu',texto:txt});rBusy=true;if(window.R3D)window.R3D.talk(true);renderReception();
-      try{const r=await fetch('/api/recepcao/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mensagem:txt})});const j=await r.json().catch(()=>({}));
+      try{const r=await fetch(BASE+'/api/recepcao/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mensagem:txt})});const j=await r.json().catch(()=>({}));
         if(!r.ok){rMsgs.pop();rErr=j.erro||'Não consegui responder agora.';if(j.formulario)rStage='form'}else rMsgs.push(j)}
       catch{rMsgs.pop();rErr='Sem conexão. Tente de novo.'}
       rBusy=false;if(window.R3D)window.R3D.talk(false);renderReception();const t2=el('rpanel').querySelector('.cform textarea');if(t2){if(rErr&&rStage==='chat')t2.value=txt;t2.focus()}};
@@ -483,14 +484,14 @@ function renderReception(){
     ta.oninput=()=>{ta.style.height='';ta.style.height=Math.min(120,ta.scrollHeight)+'px'};
     box.append(err,f);
   }
-  box.append(h('p',{class:'rfoot'},'Atendimento por IA. Seus dados são usados só para a Venus retornar o contato. ',rStage==='chat'?h('button',{class:'ghost sm',onclick:()=>{rStage='form';rErr='';renderReception()}},'Prefiro deixar um recado'):''));
+  box.append(h('p',{class:'rfoot'},'Atendimento por IA. Seus dados são usados só para a empresa retornar o contato. ',rStage==='chat'?h('button',{class:'ghost sm',onclick:()=>{rStage='form';rErr='';renderReception()}},'Prefiro deixar um recado'):''));
   msgs.scrollTop=msgs.scrollHeight;
 }
 
 /* ---------- código de ética ---------- */
 async function openEtica(){
   const b=el('eticab');b.replaceChildren(h('p',{class:'muted'},'Carregando…'));el('etica').showModal();
-  try{const j=await(await fetch('/api/etica')).json();b.replaceChildren();let ul=null;
+  try{const j=await(await fetch(BASE+'/api/etica')).json();b.replaceChildren();let ul=null;
     j.texto.split('\n').forEach(l=>{l=l.trim();if(!l){ul=null;return}
       if(l.startsWith('- ')){if(!ul){ul=h('ul',{});b.append(ul)}ul.append(h('li',{},l.slice(2)));return}ul=null;
       b.append(l.startsWith('## ')?h('h4',{},l.slice(3)):l.startsWith('# ')?h('h3',{},l.slice(2)):h('p',{},l))})}
@@ -511,16 +512,16 @@ const CERT={confirmada:'causa confirmada',hipotese:'hipótese',desconhecida:'cau
 async function openReunioes(){
   const body=showPanel('reunioes','Reuniões da equipe','Alinhamento e estratégia. Nada muda sem a sua aprovação.');
   body.append(h('p',{class:'muted small'},'Carregando…'));
-  let j;try{const r=await fetch('/api/reunioes',{cache:'no-store'});if(!r.ok)throw 0;j=await r.json()}catch{if(panel==='reunioes')body.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar.'));return}
+  let j;try{const r=await fetch(BASE+'/api/reunioes',{cache:'no-store'});if(!r.ok)throw 0;j=await r.json()}catch{if(panel==='reunioes')body.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar.'));return}
   if(panel!=='reunioes')return;body.replaceChildren();
   const msg=h('p',{class:'muted small'},j.ia?(j.agora?'Reunião em andamento, a ata aparece aqui em instantes…':''):'Falta a chave da API para as reuniões acontecerem.');
   if((j.agentes||[]).length){body.append(h('div',{class:'sub2'},'Novos agentes aguardando aprovação'));
-    j.agentes.forEach(a=>{const p=a.perfil,dec=acao=>async()=>{try{await api('/api/agentes',{id:a.id,acao});log(`${me.nome} ${acao==='aprovar'?'aprovou o agente':'recusou o agente'}: ${p.nome}`);await poll(true);openReunioes()}catch(e){alert(e.message)}};
+    j.agentes.forEach(a=>{const p=a.perfil,dec=acao=>async()=>{try{await api(BASE+'/api/agentes',{id:a.id,acao});log(`${me.nome} ${acao==='aprovar'?'aprovou o agente':'recusou o agente'}: ${p.nome}`);await poll(true);openReunioes()}catch(e){alert(e.message)}};
       body.append(h('div',{class:'card'},h('h5',{},p.nome+' · '+p.cargo),h('span',{class:'muted small'},`${salaSetor(p.setor)} · ${p.turno.inicio}–${p.turno.fim} · pedido por ${a.autor}`),h('p',{},p.bio),h('ul',{class:'faz'},p.faz.map(x=>h('li',{},x))),
         h('details',{class:'more'},h('summary',{},'Ver instruções de trabalho'),h('p',{style:'white-space:pre-wrap'},p.instrucoes)),h('div',{class:'prow',style:'justify-content:flex-end'},h('button',{class:'ghost sm',onclick:dec('recusar')},'Recusar'),h('button',{class:'cta sm',onclick:dec('aprovar')},'Aprovar e contratar'))))})}
   body.append(h('div',{class:'sub2'},'Agenda diária'));
   j.agenda.forEach(a=>{const b=h('button',{class:'ghost sm',disabled:!j.ia||!!j.agora},'Convocar agora');
-    b.onclick=async()=>{b.disabled=true;msg.textContent='Reunindo a equipe na sala… leva até um minuto.';poll(true);try{await api('/api/reunioes/convocar',{tipo:a.id});log(`${me.nome} convocou a reunião: ${a.nome}`)}catch(e){alert(e.message)}poll(true);if(panel==='reunioes')openReunioes()};
+    b.onclick=async()=>{b.disabled=true;msg.textContent='Reunindo a equipe na sala… leva até um minuto.';poll(true);try{await api(BASE+'/api/reunioes/convocar',{tipo:a.id});log(`${me.nome} convocou a reunião: ${a.nome}`)}catch(e){alert(e.message)}poll(true);if(panel==='reunioes')openReunioes()};
     body.append(h('div',{class:'card'},h('div',{class:'prow',style:'margin:0'},h('div',{},h('h5',{},`${a.hora} · ${a.nome}`),h('span',{class:'muted small'},a.participantes.map(nomeDe).join(', '))),b)))});
   body.append(msg,h('div',{class:'sub2'},'Atas'));
   if(!j.reunioes.length)body.append(h('p',{class:'muted small'},'Nenhuma reunião registrada ainda.'));
@@ -529,7 +530,7 @@ async function openReunioes(){
     r.avisos.forEach(a=>card.append(h('div',{class:'aviso'+(a.certeza==='confirmada'?' c':'')},h('b',{},a.titulo),h('span',{class:'muted'},` · ${nomeDe(a.responsavel)} · ${CERT[a.certeza]||a.certeza}`),h('div',{},a.o_que_houve),h('div',{},h('b',{},'Causa: '),a.causa),h('div',{},h('b',{},'Próximo passo: '),a.proximo_passo))));
     r.propostas.forEach(p=>{
       const row=h('div',{class:'prow'});
-      if(p.status==='pendente'){const dec=acao=>async()=>{try{await api('/api/propostas',{reuniao:r.id,proposta:p.id,acao});log(`${me.nome} ${acao==='aprovar'?'aprovou':'recusou'}: ${p.titulo}`);poll(true);openReunioes()}catch(e){alert(e.message)}};
+      if(p.status==='pendente'){const dec=acao=>async()=>{try{await api(BASE+'/api/propostas',{reuniao:r.id,proposta:p.id,acao});log(`${me.nome} ${acao==='aprovar'?'aprovou':'recusou'}: ${p.titulo}`);poll(true);openReunioes()}catch(e){alert(e.message)}};
         row.append(h('button',{class:'ghost sm',onclick:dec('recusar')},'Recusar'),h('button',{class:'cta sm',onclick:dec('aprovar')},`Aprovar · vai para ${nomeDe(p.func)}`))}
       else row.append(h('span',{class:'tag '+(p.status==='aprovada'?'d':'c')},(p.status==='aprovada'?'Aprovada':'Recusada')+(p.por?' por '+p.por:'')));
       card.append(h('div',{class:'prop'},h('b',{},p.titulo),h('span',{class:'muted'},' · proposta de '+nomeDe(p.func)),h('div',{style:'white-space:pre-wrap;margin-top:4px'},p.descricao),h('div',{class:'muted small',style:'margin-top:4px'},'Por quê: '+p.motivo),row))});
@@ -538,10 +539,10 @@ async function openReunioes(){
 }
 async function openRecados(){
   const body=showPanel('recados','Recados da recepção','O que os visitantes deixaram com a Lívia.');
-  let list;try{const r=await fetch('/api/recados',{cache:'no-store'});if(!r.ok)throw 0;list=await r.json()}catch{body.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar.'));return}
+  let list;try{const r=await fetch(BASE+'/api/recados',{cache:'no-store'});if(!r.ok)throw 0;list=await r.json()}catch{body.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar.'));return}
   if(panel!=='recados')return;body.replaceChildren();
   if(!list.length)body.append(h('p',{class:'muted small',style:'margin-top:14px'},'Nenhum recado ainda.'));
-  list.forEach(r=>{const b=r.visto?h('span',{class:'tag c'},'Visto'+(r.vistoPor?' por '+r.vistoPor:'')):h('button',{class:'cta sm',onclick:async()=>{try{await api('/api/recados/visto',{id:r.id});poll(true);openRecados()}catch(e){alert(e.message)}}},'Marcar como visto');
+  list.forEach(r=>{const b=r.visto?h('span',{class:'tag c'},'Visto'+(r.vistoPor?' por '+r.vistoPor:'')):h('button',{class:'cta sm',onclick:async()=>{try{await api(BASE+'/api/recados/visto',{id:r.id});poll(true);openRecados()}catch(e){alert(e.message)}}},'Marcar como visto');
     body.append(h('div',{class:'card',style:'margin-top:10px'},h('h5',{},r.nome+(r.empresa?' · '+r.empresa:'')),h('span',{class:'muted small'},fmtDia(r.t)+' · '+(r.origem==='formulario'?'formulário':'conversa com a Lívia')),h('p',{},h('b',{},'Contato: '),r.contato),h('p',{},h('b',{},'Assunto: '),r.assunto),r.resumo?h('p',{style:'white-space:pre-wrap'},r.resumo):'',h('div',{class:'prow'},h('span',{}),b)))});
 }
 el('breun').onclick=()=>panel==='reunioes'?openFicha(null):openReunioes();el('brec').onclick=()=>panel==='recados'?openFicha(null):openRecados();
@@ -552,7 +553,7 @@ const PROMPT_BONECO='Full body character, front view, standing in A-pose (arms s
 function baixar(blob,nome){const a=h('a',{href:URL.createObjectURL(blob),download:nome});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
 async function openEstudio(){
   const d=el('est'),b=el('estb');b.replaceChildren(h('p',{class:'muted'},'Carregando o estúdio…'));d.showModal();
-  let info;try{EST=EST||await import('/estudio.js');const r=await fetch('/api/estudio',{cache:'no-store'});if(!r.ok)throw 0;info=await r.json()}catch{b.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar o estúdio neste navegador.'));return}
+  let info;try{EST=EST||await import('/estudio.js');const r=await fetch(BASE+'/api/estudio',{cache:'no-store'});if(!r.ok)throw 0;info=await r.json()}catch{b.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar o estúdio neste navegador.'));return}
   const st=()=>h('p',{class:'est-st',role:'status'}),say=(n,t,err)=>{n.textContent=t;n.className='est-st'+(err?' e':'')};
   const s1=st(),s2=st(),s3=st();
   const fGlb=h('input',{type:'file',accept:'.glb,model/gltf-binary'}),fFbx=h('input',{type:'file',accept:'.fbx'});
@@ -571,7 +572,7 @@ async function openEstudio(){
     catch(e){say(s2,e.message||'Não consegui montar o personagem.',1)}b2.disabled=false};
   b4.onclick=()=>estOut&&baixar(new Blob([estOut],{type:'model/gltf-binary'}),sel.value+'.glb');
   b3.onclick=async()=>{if(!estOut)return;const nome=sel.options[sel.selectedIndex].text;if(!confirm(`Trocar o boneco de ${nome} no escritório?`))return;b3.disabled=true;say(s3,'Enviando…');
-    try{const r=await fetch('/api/estudio/publicar?agente='+encodeURIComponent(sel.value),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:estOut});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.erro||'Não foi possível publicar.');
+    try{const r=await fetch(BASE+'/api/estudio/publicar?agente='+encodeURIComponent(sel.value),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:estOut});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.erro||'Não foi possível publicar.');
       say(s3,'Publicado. O escritório reinicia sozinho e o boneco novo aparece em uns 2 minutos (recarregue a página).');log(`${me.nome} publicou um boneco novo para ${nome}`)}catch(e){say(s3,e.message,1)}b3.disabled=false};
   b.replaceChildren(h('h3',{},'Estúdio de personagens'),h('p',{class:'muted small'},'Transforma uma imagem em um boneco 3D animado para um agente. Os passos 1, 2 e 4 acontecem em sites gratuitos de fora; o estúdio faz as conversões.'),
     h('div',{class:'card'},h('h5',{},'1 · Imagem no Gemini'),h('p',{},'Peça o personagem de corpo inteiro, de frente, com os braços um pouco afastados e fundo branco. Modelo de pedido:'),h('pre',{},PROMPT_BONECO)),
@@ -587,14 +588,14 @@ el('best').onclick=openEstudio;el('estclose').onclick=()=>el('est').close();el('
 function openLogin(){el('lerr').textContent='';el('login').showModal();el('lemail').focus()}
 el('lform').onsubmit=async e=>{
   e.preventDefault();el('lerr').textContent='';
-  try{await api('/api/login',{email:el('lemail').value,senha:el('lsenha').value});el('lsenha').value='';el('login').close();await poll(true);if(me)go('dentro');if(selected)openFicha(selected)}
+  try{await api(BASE+'/api/login',{email:el('lemail').value,senha:el('lsenha').value});el('lsenha').value='';el('login').close();await poll(true);if(me)go('dentro');if(selected)openFicha(selected)}
   catch(err){el('lerr').textContent=err.message}
 };
 el('lcancel').onclick=()=>el('login').close();
 function renderWho(){
   const w=el('who');w.replaceChildren();
-  if(me){w.append(h('span',{class:'pill'},h('span',{class:'dot '+(worker&&worker.online?'on':'')}),worker&&worker.online?'Worker online':'Worker offline'),
-    h('span',{class:'pill'},me.nome),h('button',{class:'ghost',onclick:async()=>{await api('/api/logout',{});me=null;tasksCache=[];openFicha(null);await poll(true);go('rec')}},'Sair'))}
+  if(me){if(!BASE)w.append(h('span',{class:'pill'},h('span',{class:'dot '+(worker&&worker.online?'on':'')}),worker&&worker.online?'Worker online':'Worker offline'));w.append(
+    h('span',{class:'pill'},me.nome),h('button',{class:'ghost',onclick:async()=>{await api(BASE+'/api/logout',{});me=null;tasksCache=[];openFicha(null);await poll(true);go('rec')}},'Sair'))}
 }
 
 /* ---------- atividade ---------- */
@@ -621,11 +622,16 @@ function apply(list){
   prev=Object.fromEntries(list.map(f=>[f.id,{emTurno:f.emTurno,trabalhando:f.trabalhando}]));
   funcs=list;sync();renderList();updateFicha(false);setConn();
 }
-let real=null,rec=null,reuniaoOn=false;
+let real=null,rec=null,reuniaoOn=false,marcaDe=null;
+function marca(){ // nome da empresa na tela (a Venus já vem escrita no HTML)
+  if(!BASE||!rec||!rec.empresa||marcaDe===rec.empresa)return;marcaDe=rec.empresa;
+  document.querySelectorAll('.brand').forEach(b=>{for(const n of b.childNodes)if(n.nodeType===3&&n.textContent.trim()){n.textContent=rec.empresa.toUpperCase()+' ';break}});
+  document.title='Escritório virtual · '+rec.empresa;el('rback').hidden=true;if(window.R3D&&window.R3D.setEmpresa)window.R3D.setEmpresa(rec.empresa);
+}
 async function poll(once){
-  try{const r=await fetch('/api/office',{cache:'no-store'});if(!r.ok)throw 0;real=await r.json();
+  try{const r=await fetch(BASE+'/api/office',{cache:'no-store'});if(!r.ok)throw 0;real=await r.json();
     if(!connected&&!firstPoll)log('Conexão com o escritório restabelecida');connected=true;
-    setores=real.setores;rec=real.recepcao||rec;if(rec&&window.R3D)window.R3D.setModel(rec.modelo);
+    setores=real.setores;rec=real.recepcao||rec;marca();if(rec&&window.R3D)window.R3D.setModel(rec.modelo);
     const wasMe=!!me;me=real.logado;worker=real.worker||null;renderWho();
     if(!me&&place==='dentro')go('rec');
     if(wasMe!==!!me&&place==='rec')openReception();
@@ -653,5 +659,5 @@ el('tour').onclick=()=>{
   if(selected)openFicha(selected);
 };
 
-renderEvents();renderWho();resize();requestAnimationFrame(frame);poll();
+renderEvents();renderWho();resize();requestAnimationFrame(frame);poll();if(BASE){el('best').hidden=true;document.querySelector('.foot').textContent='Clique em um funcionário para ver o perfil, a agenda e conversar. Área restrita à equipe.';go('rec')}
 })();

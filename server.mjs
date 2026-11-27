@@ -2,6 +2,8 @@
 import http from 'node:http';
 import {readFileSync, writeFileSync, renameSync, existsSync} from 'node:fs';
 import {timingSafeEqual, createHash, createHmac, randomBytes, scryptSync, randomUUID} from 'node:crypto';
+import {criarRepo} from './repo.mjs';
+const SEGREDO_LOCAL = randomBytes(32).toString('hex');
 
 /* ---------- arquivos públicos ---------- */
 const pub = f => new URL('./public/' + f, import.meta.url);
@@ -15,24 +17,35 @@ const STATIC = {
 };
 const files = Object.fromEntries(Object.entries(STATIC).map(([k, [f, t]]) => [k, [readFileSync(pub(f)), t]]));
 const assets = new Map();
-const cfg = JSON.parse(readFileSync(pub('agents.json')));
+const ETICA_BASE = readFileSync(pub('etica.md'), 'utf8');
+
+/* ============ um escritório por empresa ============
+   cfg = equipe, setores, empresa e reuniões; X = o que muda de uma empresa para outra (usuários, estado salvo, plano). */
+function criarEscritorio(cfg, X) {
+const VENUS = X.slug === 'venus';
 const SETORES = cfg.setores, FUNC = cfg.funcionarios, TZ = cfg.fuso || 'America/Cuiaba';
 const byId = Object.fromEntries(FUNC.map(f => [f.id, f]));
 // boneco próprio: se existir public/models/c/<id>.glb (publicado pelo estúdio), ele vale no lugar do modelo padrão
-const bonecoProprio = f => { if (/^[a-z0-9]{2,30}$/.test(f.id) && existsSync(pub(`models/c/${f.id}.glb`))) f.modelo = f.id; };
+const bonecoProprio = f => { if (VENUS && /^[a-z0-9]{2,30}$/.test(f.id) && existsSync(pub(`models/c/${f.id}.glb`))) f.modelo = f.id; };
 FUNC.forEach(bonecoProprio);
-const ETICA = readFileSync(pub('etica.md'), 'utf8');
 const EMPRESA = cfg.empresa || {}, REUNIOES = cfg.reunioes || [];
+// textos escritos para a Venus valem para as outras empresas com o nome trocado
+const nomeJ = JSON.stringify(EMPRESA.nome || 'empresa').slice(1, -1);
+const loc = t => VENUS ? t : t.replaceAll('Venus Tecnologia', nomeJ).replaceAll('Venus', nomeJ);
+const ETICA = VENUS ? ETICA_BASE : ETICA_BASE.replaceAll('Venus Tecnologia', EMPRESA.nome || 'empresa').replaceAll('Venus', EMPRESA.nome || 'empresa');
 const SEC = byId[EMPRESA.secretaria] || FUNC[0];
+const CK = VENUS ? 'venus_sess' : 'sess_' + X.slug.replaceAll('-', '_'), CKV = VENUS ? 'venus_vis' : 'vis_' + X.slug.replaceAll('-', '_');
 
 /* ---------- segredos ---------- */
-const TOKEN = process.env.OFFICE_TOKEN || '';
-const SECRET = process.env.SESSION_SECRET || (TOKEN ? createHash('sha256').update('sessao:' + TOKEN).digest('hex') : randomBytes(32).toString('hex'));
-const USERS = (() => {
+const TOKEN = VENUS ? process.env.OFFICE_TOKEN || '' : '';
+const SECRET0 = process.env.SESSION_SECRET || (process.env.OFFICE_TOKEN ? createHash('sha256').update('sessao:' + process.env.OFFICE_TOKEN).digest('hex') : SEGREDO_LOCAL);
+const SECRET = VENUS ? SECRET0 : createHash('sha256').update(SECRET0 + ':' + X.slug).digest('hex');
+const USERS_ENV = !VENUS ? [] : (() => {
   try { return JSON.parse(process.env.OFFICE_USERS || '[]').filter(u => u.email && u.hash).map(u => ({...u, email: u.email.toLowerCase()})); }
   catch { console.error('OFFICE_USERS inválido: use o formato gerado por scripts/gerar-senha.mjs'); return []; }
 })();
 const GH_TOKEN = process.env.GITHUB_TOKEN || '', GH_REPO = process.env.GITHUB_REPO || 'Mahaseias/venus-escritorio', GH_BRANCH = process.env.GITHUB_BRANCH || 'main';
+const usuarios = () => VENUS ? USERS_ENV : X.usuarios();
 const TASK_TIMEOUT_MIN = Number(process.env.TASK_TIMEOUT_MIN || 90);
 
 /* ---------- estado ---------- */
@@ -43,15 +56,17 @@ let recados = [];                    // recados deixados na recepção
 let reunioes = [];                   // atas das reuniões (com propostas aguardando aprovação)
 let agentesNovos = [];               // agentes propostos pelo desenvolvedor: pendente, aprovado, recusado ou desligado
 let workerSeen = 0;
-const STATE_FILE = process.env.STATE_FILE;
+const STATE_FILE = VENUS ? process.env.STATE_FILE : null;
+if (X.estado) { const st = X.estado; tasks = st.tasks || []; chats = st.chats || {}; recados = st.recados || []; reunioes = st.reunioes || []; agentesNovos = st.agentesNovos || []; }
 if (STATE_FILE && existsSync(STATE_FILE)) {
   try {  const st = JSON.parse(readFileSync(STATE_FILE, 'utf8')); tasks = st.tasks || []; chats = st.chats || {}; recados = st.recados || []; reunioes = st.reunioes || []; agentesNovos = st.agentesNovos || []; } catch { console.error('Não foi possível ler STATE_FILE'); }
 }
 let saveTimer = null;
 function save() {
-  if (!STATE_FILE || saveTimer) return;
+  if ((!STATE_FILE && !X.salvar) || saveTimer) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
+    if (X.salvar) return X.salvar({tasks, chats, recados, reunioes, agentesNovos});
     try { writeFileSync(STATE_FILE + '.tmp', JSON.stringify({tasks, chats, recados, reunioes, agentesNovos})); renameSync(STATE_FILE + '.tmp', STATE_FILE); }
     catch (e) { console.error('Falha ao salvar estado:', e.message); }
   }, 800);
@@ -66,7 +81,7 @@ function prune() {
 }
 
 /* ---------- atividades das rotinas (Notion) ---------- */
-const NOTION_TOKEN = process.env.NOTION_TOKEN || '';
+const NOTION_TOKEN = VENUS ? process.env.NOTION_TOKEN || '' : '';
 const NOTION_DB = process.env.NOTION_ATIVIDADES_DB || (cfg.notion || {}).atividades_db || '';
 let atividades = [], notionOk = null;
 async function pollNotion() {
@@ -208,7 +223,7 @@ function makeCookie(email) {
   return body + '.' + sign(body);
 }
 function readCookie(req) {
-  const m = /(?:^|;\s*)venus_sess=([^;]+)/.exec(req.headers.cookie || '');
+  const m = new RegExp('(?:^|;\\s*)' + CK + '=([^;]+)').exec(req.headers.cookie || '');
   if (!m) return null;
   const [body, sig] = m[1].split('.');
   if (!body || !sig) return null;
@@ -217,7 +232,7 @@ function readCookie(req) {
   try {
     const {e, x} = JSON.parse(Buffer.from(body, 'base64url').toString());
     if (Date.now() > x) return null;
-    return USERS.find(u => u.email === e) || null;
+    return usuarios().find(u => u.email === e) || null;
   } catch { return null; }
 }
 function checkPassword(user, senha) {
@@ -249,11 +264,12 @@ function turnoTexto(t) {
 const pubTask = t => ({ordem: t.ordem ?? t.criada, id: t.id, func: t.func, titulo: t.titulo, texto: t.texto, autor: t.autor, status: t.status, criada: t.criada, iniciada: t.iniciada || null, concluida: t.concluida || null, resultado: t.resultado || ''});
 function office(user) {
   if (!user) return {agora: Date.now(), fuso: TZ, logado: null, setores: [], funcionarios: [],
-    recepcao: {comercial: EMPRESA.comercial || null, id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY}};
+    recepcao: {empresa: EMPRESA.nome || '', comercial: EMPRESA.comercial || null, id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY}};
   const ativos = estado(), ra = reuniaoAtiva();
   return {
-    recepcao: {comercial: EMPRESA.comercial || null, id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY},
+    recepcao: {empresa: EMPRESA.nome || '', comercial: EMPRESA.comercial || null, id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY},
     reuniao: ra ? {nome: ra.nome, participantes: ra.participantes, ate: ra.desde + REUNIAO_MIN * 60000} : null,
+    plano: X.plano ? X.plano() : null,
     pendencias: {propostas: reunioes.reduce((n, r) => n + r.propostas.filter(p => p.status === 'pendente').length, agentesNovos.filter(a => a.status === 'pendente').length), recados: recados.filter(r => !r.visto).length},
     agora: Date.now(), fuso: TZ, setores: SETORES, notion: user ? (NOTION_TOKEN ? (notionOk ? 'ok' : 'erro') : 'desligado') : undefined,
     logado: user ? {nome: user.nome || user.email, email: user.email} : null, chat: user ? !!AI_KEY : undefined,
@@ -347,10 +363,13 @@ function proporAgente(d, user) {
   return {ok: true, nome, msg: `Proposta registrada. ${nome} só entra na equipe depois que um responsável da Venus aprovar na tela Reuniões.`};
 }
 async function anthropic(body, ms = 60000) {
+  if (!X.liberado()) throw Object.assign(new Error('plano inativo'), {status: 402});
+  if (typeof body.system === 'string') body.system = VENUS ? body.system : body.system.replaceAll('Venus Tecnologia', EMPRESA.nome).replaceAll('Venus', EMPRESA.nome);
   const r = await fetch(AI_BASE + '/v1/messages', {method: 'POST', signal: AbortSignal.timeout(ms),
     headers: {'x-api-key': AI_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'}, body: JSON.stringify(body)});
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(j?.error?.message || 'HTTP ' + r.status), {status: r.status});
+  if (X.uso && j.usage) X.uso(j.usage, body.model);
   return j;
 }
 async function conversar(f, user, hist) {
@@ -386,14 +405,14 @@ const VIS_DAILY = Number(process.env.VISITOR_DAILY_LIMIT || 300);   // mensagens
 const VIS_IP = 40, VIS_CONV = 25, VIS_CHARS = 800;
 const visitas = new Map();           // id do visitante -> {msgs, n, t, recado}
 function visita(req, criar = true) {
-  const m = /(?:^|;\s*)venus_vis=([\w-]{16,40})\.([\w-]+)/.exec(req.headers.cookie || '');
+  const m = new RegExp('(?:^|;\\s*)' + CKV + '=([\\w-]{16,40})\\.([\\w-]+)').exec(req.headers.cookie || '');
   let id = null;
   if (m) { const a = Buffer.from(sign('vis:' + m[1])), b = Buffer.from(m[2]); if (a.length === b.length && timingSafeEqual(a, b)) id = m[1]; }
   if (!criar && (!id || !visitas.has(id))) return {v: {msgs: [], n: 0}, cookie: null};
   const novo = !id; if (novo) id = randomBytes(15).toString('base64url');
   let v = visitas.get(id);
   if (!v) { if (visitas.size >= 400) visitas.delete(visitas.keys().next().value); v = {msgs: [], n: 0, t: Date.now(), recado: null}; visitas.set(id, v); }
-  return {v, cookie: novo ? `venus_vis=${id}.${sign('vis:' + id)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400` : null};
+  return {v, cookie: novo ? `${CKV}=${id}.${sign('vis:' + id)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400` : null};
 }
 function novoRecado(d, origem) {
   const limpa = (x, n) => String(x || '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -526,7 +545,7 @@ ${ETICA}`;
 const salvarReuniao = r => notionSalvar(r, {titulo: `Reunião: ${r.nome}`, rotina: 'reuniao-' + r.tipo, func: r.participantes[0] || SEC.id,
   resumo: `${r.resumo}${r.avisos.length ? '\nAvisos: ' + r.avisos.map(a => a.titulo).join('; ') : ''}${r.propostas.length ? '\nPropostas: ' + r.propostas.map(p => `${p.titulo} [${p.status}]`).join('; ') : ''}`});
 function tickReunioes() {
-  if (!AI_KEY || !notionCarregado) return;
+  if (!AI_KEY || !notionCarregado || !X.liberado()) return;
   const {dow, min} = agora(), d = hoje();
   for (const def of REUNIOES) {
     const atraso = min - toMin(def.hora);
@@ -550,11 +569,10 @@ async function readJSON(req, max = 8192) {
 }
 const titulo = s => { const l = s.trim().split('\n')[0]; return l.length > 80 ? l.slice(0, 77) + '…' : l; };
 
-http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://x'), path = url.pathname;
+async function rota(req, res, url, path) {
   const send = (code, data, type = 'application/json; charset=utf-8', extra = {}) => {
     res.writeHead(code, {'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', ...extra});
-    res.end(typeof data === 'string' || Buffer.isBuffer(data) ? data : JSON.stringify(data));
+    res.end(typeof data === 'string' || Buffer.isBuffer(data) ? data : loc(JSON.stringify(data)));
   };
   const user = readCookie(req);
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
@@ -581,6 +599,7 @@ http.createServer(async (req, res) => {
           agora: reuniaoAgora && !reuniaoAgora.pronta ? reuniaoAgora.tipo : null, reunioes: reunioes.slice(-20).reverse().map(pubReuniao)});
       }
       if (path === '/api/estudio') {
+        if (!VENUS) return send(404, {});
         if (!user) return send(401, {erro: 'Faça login'});
         return send(200, {github: !!GH_TOKEN, agentes: FUNC.map(f => ({id: f.id, nome: f.nome, proprio: f.modelo === f.id}))});
       }
@@ -645,12 +664,12 @@ http.createServer(async (req, res) => {
     if (path === '/api/login') {
       if (limited(ip)) return send(429, {erro: 'Muitas tentativas. Aguarde alguns minutos.'});
       const {email, senha} = await readJSON(req, 1024);
-      const u = USERS.find(u => u.email === String(email || '').trim().toLowerCase());
+      const u = usuarios().find(u => u.email === String(email || '').trim().toLowerCase());
       if (!u || !checkPassword(u, senha)) return send(401, {erro: 'E-mail ou senha inválidos.'});
       const secure = (req.headers['x-forwarded-proto'] || '') === 'https' ? '; Secure' : '';
-      return send(200, {nome: u.nome || u.email}, undefined, {'Set-Cookie': `venus_sess=${makeCookie(u.email)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}`});
+      return send(200, {nome: u.nome || u.email}, undefined, {'Set-Cookie': `${CK}=${makeCookie(u.email)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure}`});
     }
-    if (path === '/api/logout') return send(200, {ok: true}, undefined, {'Set-Cookie': 'venus_sess=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'});
+    if (path === '/api/logout') return send(200, {ok: true}, undefined, {'Set-Cookie': CK + '=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'});
 
     /* recepção (visitantes) */
     if (path === '/api/recepcao/chat') {
@@ -705,6 +724,7 @@ http.createServer(async (req, res) => {
       return send(200, pubReuniao(r));
     }
     if (path === '/api/estudio/publicar') {
+      if (!VENUS) return send(404, {});
       const f = byId[url.searchParams.get('agente')];
       if (!f || !/^[a-z0-9]{2,30}$/.test(f.id)) return send(400, {erro: 'Agente inválido'});
       if (!GH_TOKEN) return send(503, {erro: 'Falta a variável GITHUB_TOKEN no Render para o estúdio publicar sozinho. Baixe o arquivo e envie pelo chat.'});
@@ -770,7 +790,7 @@ http.createServer(async (req, res) => {
         return send(200, msg);
       } catch (e) {
         hist.pop(); console.error('Chat:', e.status || '', e.message);
-        const m = /credit balance/i.test(e.message) ? 'Os créditos da API acabaram.' : e.status === 401 ? 'A chave da API foi recusada.' : 'Não consegui responder agora. Tente de novo em instantes.';
+        const m = e.status === 402 ? 'O período de teste terminou. Fale com o Comercial para ativar o plano.' : /credit balance/i.test(e.message) ? 'Os créditos da API acabaram.' : e.status === 401 ? 'A chave da API foi recusada.' : 'Não consegui responder agora. Tente de novo em instantes.';
         return send(502, {erro: m});
       }
     }
@@ -810,6 +830,30 @@ http.createServer(async (req, res) => {
   } catch (e) {
     return send(e.code === 413 ? 413 : 400, {erro: 'Requisição inválida'});
   }
+}
+return {rota, equipe: () => FUNC.length, usuarios: () => usuarios().length};
+}
+
+/* ============ todas as empresas ============ */
+const repo = criarRepo();
+const escritorios = new Map();
+const venus = criarEscritorio(JSON.parse(readFileSync(pub('agents.json'))), {slug: 'venus', liberado: () => true});
+escritorios.set('venus', Promise.resolve(venus));
+function abrir(slug) {
+  if (!escritorios.has(slug)) {
+    const p = repo.carregar(slug).then(t => t ? criarEscritorio(t.cfg, t.X) : null).catch(e => { console.error(`Empresa ${slug}:`, e.message); return null; });
+    escritorios.set(slug, p);
+    p.then(v => { if (!v) setTimeout(() => escritorios.delete(slug), 20000); });   // não achou: tenta de novo depois
+  }
+  return escritorios.get(slug);
+}
+http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x'); let path = url.pathname, slug = 'venus';
+  const m = /^\/e\/([a-z0-9-]{3,40})(\/.*)?$/.exec(path);
+  if (m) { slug = m[1]; path = m[2] || '/'; }
+  const esc = await abrir(slug);
+  if (!esc) { res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'}); return res.end('Escritório não encontrado.'); }
+  return esc.rota(req, res, url, path);
 }).listen(Number(process.env.PORT || 3000), '0.0.0.0', () => {
-  console.log(`Escritório Venus no ar · ${FUNC.length} funcionários · ${USERS.length} usuários com acesso`);
+  console.log(`Escritório no ar · Venus com ${venus.equipe()} funcionários e ${venus.usuarios()} usuários · outras empresas: ${repo.tipo}`);
 });
