@@ -579,6 +579,7 @@ async function rota(req, res, url, path) {
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   try {
     if (req.method === 'GET') {
+      if (path === '/' && !VENUS) return send(200, files['/'][0].toString().replace('<html lang="pt-BR">', `<html lang="pt-BR" data-emp="${X.slug}">`), 'text/html; charset=utf-8', {'Content-Security-Policy': CSP});
       if (STATIC[path]) { const [buf, type] = files[path]; return send(200, buf, type, path === '/' ? {'Content-Security-Policy': CSP} : {'Cache-Control': 'public, max-age=300'}); }
       const asset = /^\/(vendor|models|cat)\/((?:[\w-]+\/)*[\w.-]+\.(js|glb|png|jpg))$/.exec(path);
       if (asset && !path.includes('..')) {
@@ -603,6 +604,12 @@ async function rota(req, res, url, path) {
         if (!VENUS) return send(404, {});
         if (!user) return send(401, {erro: 'Faça login'});
         return send(200, {github: !!GH_TOKEN, agentes: FUNC.map(f => ({id: f.id, nome: f.nome, proprio: f.modelo === f.id}))});
+      }
+      if (path === '/api/dominio') {
+        if (!user || VENUS) return send(404, {});
+        const dom = X.dominio(); let estado = dom ? 'aguardando' : 'nenhum';
+        if (dom && RENDER_KEY && RENDER_SVC) { try { const r = await fetch(`https://api.render.com/v1/services/${RENDER_SVC}/custom-domains/${dom}`, {headers: {'Authorization': 'Bearer ' + RENDER_KEY, 'Accept': 'application/json'}, signal: AbortSignal.timeout(10000)}); if (r.ok) estado = (await r.json()).verificationStatus === 'verified' ? 'ativo' : 'aguardando'; } catch {} }
+        return send(200, {dominio: dom, estado, alvo: ALVO_DNS || req.headers.host, automatico: !!(RENDER_KEY && RENDER_SVC), dono: user.papel === 'dono'});
       }
       if (path === '/api/recados') {
         if (!user) return send(401, {erro: 'Faça login'});
@@ -743,6 +750,23 @@ async function rota(req, res, url, path) {
         return send(201, {ok: true});
       } catch (e) { console.error('Estúdio:', e.message); return send(502, {erro: 'Não consegui falar com o GitHub agora.'}); }
     }
+    if (path === '/api/dominio') {
+      if (VENUS) return send(404, {});
+      if (user.papel !== 'dono') return send(403, {erro: 'Só quem criou o escritório pode mudar o domínio.'});
+      const novo = String((await readJSON(req, 512)).dominio || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''), antigo = X.dominio();
+      if (novo && (!/^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(novo) || HOSTS_NOSSOS.test(novo))) return send(400, {erro: 'Informe um domínio válido, como escritorio.suaempresa.com.br.'});
+      if (novo === antigo) return send(200, {ok: true});
+      if (!gasta('dominio', 6)) return send(429, {erro: 'Muitas trocas de domínio hoje. Tente amanhã.'});
+      try { await X.definirDominio(novo); } catch (e) { return send(e.code === 'EM_USO' ? 409 : 502, {erro: e.code === 'EM_USO' ? 'Esse domínio já está ligado a outro escritório.' : 'Não foi possível salvar agora.'}); }
+      dominiosCache.clear(); let render = 'manual';
+      if (RENDER_KEY && RENDER_SVC) { const hd = {'Authorization': 'Bearer ' + RENDER_KEY, 'Accept': 'application/json', 'Content-Type': 'application/json'}, base = `https://api.render.com/v1/services/${RENDER_SVC}/custom-domains`;
+        try { if (antigo) await fetch(`${base}/${antigo}`, {method: 'DELETE', headers: hd, signal: AbortSignal.timeout(15000)});
+          if (novo) { const r = await fetch(base, {method: 'POST', headers: hd, body: JSON.stringify({name: novo}), signal: AbortSignal.timeout(15000)}); render = r.ok || r.status === 409 ? 'ok' : 'erro'; if (render === 'erro') console.error('Render (domínio):', r.status, (await r.text()).slice(0, 200)); } else render = 'ok';
+        } catch (e) { console.error('Render (domínio):', e.message); render = 'erro'; } }
+      console.log(`Domínio de ${X.slug}: ${novo || '(removido)'} · Render: ${render}`);
+      if (render !== 'ok' && novo) venus.avisar({nome: user.nome || user.email, contato: user.email, empresa: EMPRESA.nome, assunto: 'Domínio próprio para cadastrar no Render', resumo: `O escritório /e/${X.slug} pediu o domínio ${novo}. Cadastre-o em Custom Domains do serviço no Render.`});
+      return send(200, {ok: true, render});
+    }
     if (path === '/api/agentes') {
       const {id, acao} = await readJSON(req, 512), quem = user.nome || user.email;
       if (acao === 'desligar') {
@@ -836,6 +860,12 @@ return {rota, avisar: d => novoRecado(d, 'formulario'), equipe: () => FUNC.lengt
 }
 
 /* ============ todas as empresas ============ */
+const RENDER_KEY = process.env.RENDER_API_KEY || '', RENDER_SVC = process.env.RENDER_SERVICE_ID || '', ALVO_DNS = process.env.RENDER_EXTERNAL_HOSTNAME || '';
+const HOSTS_NOSSOS = /(\.onrender\.com|(^|\.)venustecnologia\.com\.br|^localhost|^127\.|^\[|^\d+\.\d+\.\d+\.\d+)$/;
+const dominiosCache = new Map();   // domínio próprio do cliente -> empresa
+async function empresaDoHost(h) { h = String(h || '').split(':')[0].toLowerCase(); if (!h || HOSTS_NOSSOS.test(h) || !repo.porDominio) return null;
+  const c = dominiosCache.get(h); if (c && Date.now() - c.t < 300000) return c.slug; if (dominiosCache.size > 2000) dominiosCache.clear();
+  let slug = false; try { slug = (await repo.porDominio(h)) || false; } catch (e) { console.error('Domínio:', e.message); return false; } dominiosCache.set(h, {slug, t: Date.now()}); return slug; }
 const repo = criarRepo();
 const escritorios = new Map();
 const venus = criarEscritorio(JSON.parse(readFileSync(pub('agents.json'))), {slug: 'venus', liberado: () => true});
@@ -904,6 +934,7 @@ http.createServer(async (req, res) => {
   if (path === '/api/cadastro') return cadastro(req, res, url, path);
   const m = /^\/e\/([a-z0-9-]{3,40})(\/.*)?$/.exec(path);
   if (m) { slug = m[1]; path = m[2] || '/'; }
+  else { const s = await empresaDoHost(req.headers.host); if (s === false) { res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'}); return res.end('Este domínio ainda não está ligado a um escritório.'); } if (s) slug = s; }
   const esc = await abrir(slug);
   if (!esc) { res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'}); return res.end('Escritório não encontrado.'); }
   return esc.rota(req, res, url, path);

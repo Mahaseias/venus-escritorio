@@ -2,10 +2,11 @@
 (()=>{
 const el=id=>document.getElementById(id);
 const BASE=(/^\/e\/[a-z0-9-]{3,40}/.exec(location.pathname)||[''])[0]; // escritório de outra empresa: /e/nome
+const EXT=!!(BASE||document.documentElement.dataset.emp); // também vale no domínio próprio do cliente, onde não há /e/nome
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let place='fora'; // fora (fachada) · rec (recepção, aberta a visitantes) · dentro (escritório, só equipe)
 function go(p){place=p;el('exterior').hidden=p!=='fora';el('recepcao').hidden=p!=='rec';el('interior').hidden=p!=='dentro';
-  const R3=window.R3D;if(R3)p==='rec'?R3.start():R3.stop();if(BASE&&window.F3D)p==='fora'&&rec?window.F3D.start():window.F3D.stop();
+  const R3=window.R3D;if(R3)p==='rec'?R3.start():R3.stop();if(EXT&&window.F3D)p==='fora'&&rec?window.F3D.start():window.F3D.stop();
   if(p==='rec')openReception();if(p==='dentro'){resize();el('back').focus()}if(p==='fora')el('enter').focus()}
 el('enter').onclick=()=>go('rec');el('back').onclick=()=>go('rec');el('rback').onclick=()=>go('fora');
 
@@ -456,8 +457,8 @@ function renderReception(){
   fala(`Olá! Seja bem-vindo à ${s.empresa||'Venus Tecnologia'}. Eu sou ${nome}, da recepção. Você está nos visitando ou faz parte da equipe?`);
   if(rStage==='inicio'){
     msgs.append(h('div',{class:'choice'},
-      h('button',{onclick:()=>{rStage='chat';renderReception()}},'Sou visitante',h('span',{},BASE?'Quero conhecer a empresa ou falar com a equipe':'Quero conhecer a Venus ou falar com a equipe')),
-      h('button',{onclick:openLogin},BASE?'Sou da equipe':'Sou membro da Venus',h('span',{},'Entrar no escritório com meu acesso'))));
+      h('button',{onclick:()=>{rStage='chat';renderReception()}},'Sou visitante',h('span',{},EXT?'Quero conhecer a empresa ou falar com a equipe':'Quero conhecer a Venus ou falar com a equipe')),
+      h('button',{onclick:openLogin},EXT?'Sou da equipe':'Sou membro da Venus',h('span',{},'Entrar no escritório com meu acesso'))));
     return;
   }
   fala('Que bom ter você aqui! Me conta: o que você procura? Posso tirar dúvidas e anotar seu recado para a equipe.');
@@ -545,6 +546,17 @@ async function openRecados(){
   list.forEach(r=>{const b=r.visto?h('span',{class:'tag c'},'Visto'+(r.vistoPor?' por '+r.vistoPor:'')):h('button',{class:'cta sm',onclick:async()=>{try{await api(BASE+'/api/recados/visto',{id:r.id});poll(true);openRecados()}catch(e){alert(e.message)}}},'Marcar como visto');
     body.append(h('div',{class:'card',style:'margin-top:10px'},h('h5',{},r.nome+(r.empresa?' · '+r.empresa:'')),h('span',{class:'muted small'},fmtDia(r.t)+' · '+(r.origem==='formulario'?'formulário':'conversa com a Lívia')),h('p',{},h('b',{},'Contato: '),r.contato),h('p',{},h('b',{},'Assunto: '),r.assunto),r.resumo?h('p',{style:'white-space:pre-wrap'},r.resumo):'',h('div',{class:'prow'},h('span',{}),b)))});
 }
+async function openDominio(){
+  const body=showPanel('dominio','Domínio próprio','Use o endereço da sua empresa no lugar do nosso.');
+  let j;try{const r=await fetch(BASE+'/api/dominio',{cache:'no-store'});if(!r.ok)throw 0;j=await r.json()}catch{body.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar.'));return}
+  if(panel!=='dominio')return;
+  const inp=h('input',{type:'text',maxlength:253,placeholder:'escritorio.suaempresa.com.br',style:'width:100%;margin-top:6px;background:#120f1c;border:1px solid #3a3156;border-radius:9px;color:inherit;padding:10px 12px;font:inherit'});inp.value=j.dominio||'';
+  const msg=h('p',{class:'muted small'}),sub=(j.dominio||'escritorio.suaempresa.com.br').split('.')[0];
+  const salvar=async v=>{msg.textContent='Salvando…';try{await api(BASE+'/api/dominio',{dominio:v});openDominio()}catch(e){msg.textContent=e.message}};
+  const EST={nenhum:['Sem domínio próprio','c'],aguardando:['Aguardando o apontamento','q'],ativo:['No ar','d']}[j.estado]||['—','c'];
+  body.replaceChildren(h('div',{class:'card',style:'margin-top:12px'},h('h5',{},'Seu domínio'),h('span',{class:'tag '+EST[1]},EST[0]),j.dono?[inp,h('div',{class:'prow'},j.dominio?h('button',{class:'ghost sm',onclick:()=>confirm('Remover o domínio próprio?')&&salvar('')},'Remover'):h('span',{}),h('button',{class:'cta sm',onclick:()=>salvar(inp.value)},'Salvar')),msg]:h('p',{},j.dominio||'Só quem criou o escritório pode configurar.')),
+    h('div',{class:'card'},h('h5',{},'Como apontar'),h('p',{},'No painel onde o domínio da sua empresa foi registrado, crie um registro do tipo CNAME:'),h('p',{},h('b',{},'Nome: '),sub,h('br',{}),h('b',{},'Destino: '),j.alvo),h('p',{class:'muted small'},'Depois de salvo, a troca pode levar de alguns minutos a algumas horas. O cadeado de segurança (HTTPS) é emitido sozinho.'+(j.automatico?'':' O domínio ainda passa por uma liberação manual da nossa equipe.'))));
+}
 el('breun').onclick=()=>panel==='reunioes'?openFicha(null):openReunioes();el('brec').onclick=()=>panel==='recados'?openFicha(null):openRecados();
 
 /* ---------- estúdio de personagens (só equipe) ---------- */
@@ -594,7 +606,7 @@ el('lform').onsubmit=async e=>{
 el('lcancel').onclick=()=>el('login').close();
 function renderWho(){
   const w=el('who');w.replaceChildren();
-  if(me){if(!BASE)w.append(h('span',{class:'pill'},h('span',{class:'dot '+(worker&&worker.online?'on':'')}),worker&&worker.online?'Worker online':'Worker offline'));w.append(
+  if(me){if(EXT)w.append(h('button',{class:'ghost',onclick:openDominio},'Domínio'));if(!EXT)w.append(h('span',{class:'pill'},h('span',{class:'dot '+(worker&&worker.online?'on':'')}),worker&&worker.online?'Worker online':'Worker offline'));w.append(
     h('span',{class:'pill'},me.nome),h('button',{class:'ghost',onclick:async()=>{await api(BASE+'/api/logout',{});me=null;tasksCache=[];openFicha(null);await poll(true);go('rec')}},'Sair'))}
 }
 
@@ -623,10 +635,10 @@ function apply(list){
   funcs=list;sync();renderList();updateFicha(false);setConn();
 }
 let real=null,rec=null,reuniaoOn=false,marcaDe=null;
-function cena(){const R3=window.R3D,F3=window.F3D;if(!BASE||!rec)return;if(R3&&R3.setEstilo){R3.setEstilo(rec.cenario);if(rec.logo)R3.setLogo(rec.logo);else R3.setEmpresa(rec.empresa)}
+function cena(){const R3=window.R3D,F3=window.F3D;if(!EXT||!rec)return;if(R3&&R3.setEstilo){R3.setEstilo(rec.cenario);if(rec.logo)R3.setLogo(rec.logo);else R3.setEmpresa(rec.empresa)}
   if(F3&&F3.setEstilo){F3.setEstilo(rec.cenario);if(rec.logo)F3.setLogo(rec.logo);else F3.setEmpresa(rec.empresa);F3.enquadrar('centro');if(place==='fora')F3.start()}}
 function marca(){ // nome da empresa na tela (a Venus já vem escrita no HTML)
-  if(!BASE||!rec||!rec.empresa||marcaDe===rec.empresa)return;marcaDe=rec.empresa;
+  if(!EXT||!rec||!rec.empresa||marcaDe===rec.empresa)return;marcaDe=rec.empresa;
   document.querySelectorAll('.brand').forEach(b=>{for(const n of b.childNodes)if(n.nodeType===3&&n.textContent.trim()){n.textContent=rec.empresa.toUpperCase()+' ';break}});
   document.title='Escritório virtual · '+rec.empresa;el('fgl').hidden=false;document.querySelector('#exterior img').hidden=true;el('htit').textContent=rec.empresa;el('hsub').textContent=`Entre na recepção e fale com ${primeiro(rec.nome)}. Atendimento a qualquer hora, com recado direto para a equipe.`;cena();
 }
@@ -661,5 +673,5 @@ el('tour').onclick=()=>{
   if(selected)openFicha(selected);
 };
 
-renderEvents();renderWho();resize();requestAnimationFrame(frame);poll();if(BASE){el('best').hidden=true;document.querySelector('#exterior img').hidden=true;el('htit').textContent='';el('hsub').textContent='';document.querySelector('.foot').textContent='Clique em um funcionário para ver o perfil, a agenda e conversar. Área restrita à equipe.'}
+renderEvents();renderWho();resize();requestAnimationFrame(frame);poll();if(EXT){el('best').hidden=true;document.querySelector('#exterior img').hidden=true;el('htit').textContent='';el('hsub').textContent='';document.querySelector('.foot').textContent='Clique em um funcionário para ver o perfil, a agenda e conversar. Área restrita à equipe.'}
 })();

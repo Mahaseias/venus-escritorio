@@ -22,7 +22,7 @@ function montar(emp, usuarios, agentes, estado, extras) {
       foco: 'Alinhar o dia: o que foi feito, o que falhou e por quê, recados da recepção e ideias para a empresa crescer.'}] : []};
   const lista = usuarios.map(u => ({email: String(u.email).toLowerCase(), nome: u.nome, hash: u.hash, papel: u.papel}));
   const ativo = () => emp.status === 'ativa' && (emp.plano !== 'teste' || !emp.teste_ate || Date.now() < new Date(emp.teste_ate).getTime());
-  return {cfg, X: {slug: emp.slug, estado, limites: emp.limites || {}, usuarios: () => lista, liberado: ativo,
+  return {cfg, X: {slug: emp.slug, estado, limites: emp.limites || {}, dominio: () => emp.dominio || '', definirDominio: async v => { await extras.gravaDominio(v); emp.dominio = v; }, usuarios: () => lista, liberado: ativo,
     plano: () => ({plano: emp.plano, status: emp.status, ate: emp.teste_ate ? new Date(emp.teste_ate).getTime() : null, liberado: ativo()}), ...extras}};
 }
 
@@ -30,10 +30,11 @@ function fake(arquivo) {
   let dados = {}; try { if (arquivo) dados = JSON.parse(readFileSync(arquivo, 'utf8')); } catch (e) { console.error('REPO_FAKE inválido:', e.message); }
   const estados = {};
   return {tipo: arquivo ? 'arquivo de teste' : 'desligado (sem DATABASE_URL)', grava: !!arquivo,
+    async porDominio(h) { return Object.keys(dados).find(k => dados[k].empresa.dominio === h) || null; },
     async livre(slug, email) { return {slug: !dados[slug], email: !Object.values(dados).some(e => (e.usuarios || []).some(u => u.email === email))}; },
-    async criar(d) { dados[d.empresa.slug] = {empresa: d.empresa, usuarios: [d.usuario], agentes: d.agentes}; },
+    async criar(d) { dados[d.empresa.slug] = {empresa: d.empresa, usuarios: [{...d.usuario, papel: 'dono'}], agentes: d.agentes}; },
     async carregar(slug) { const e = dados[slug]; if (!e) return null;
-      return montar({slug, ...e.empresa}, e.usuarios || [], e.agentes || [], estados[slug] || null, {salvar: st => { estados[slug] = JSON.parse(JSON.stringify(st)); }, uso() {}}); }};
+      return montar({slug, ...e.empresa}, e.usuarios || [], e.agentes || [], estados[slug] || null, {salvar: st => { estados[slug] = JSON.parse(JSON.stringify(st)); }, uso() {}, gravaDominio: async v => { if (v && Object.keys(dados).some(k => k !== slug && dados[k].empresa.dominio === v)) throw Object.assign(new Error('em uso'), {code: 'EM_USO'}); e.empresa.dominio = v; }}); }};
 }
 
 function neon(url) {
@@ -54,6 +55,7 @@ function neon(url) {
   }
   q('select count(*)::int as n from empresas').then(r => console.log(`Banco conectado (${alvos[alvo]}) · ${r[0].n} empresas`)).catch(e => console.error('Banco indisponível:', e.message));
   return {tipo: 'banco Neon', q, grava: true,
+    async porDominio(h) { const [r] = await q('select slug from empresas where dominio = $1', [h]); return r ? r.slug : null; },
     async livre(slug, email) { const [r] = await q('select (select count(*) from empresas where slug = $1)::int as s, (select count(*) from usuarios where email = $2)::int as e', [slug, email]); return {slug: !r.s, email: !r.e}; },
     async criar(d) { const e = d.empresa;
       const [emp] = await q(`insert into empresas (slug, nome, sobre, oferece, site, whatsapp, cenario, plano, status, teste_ate, limites) values ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10::timestamptz,$11::jsonb) returning id`,
@@ -74,7 +76,8 @@ function neon(url) {
         if (!timer) timer = setTimeout(async () => { timer = null; const lote = Object.entries(pend); for (const [k2] of lote) delete pend[k2];
           for (const [t, n] of lote) await q(`insert into uso (empresa_id, dia, tipo, n) values ($1, (now() at time zone 'America/Cuiaba')::date, $2, $3) on conflict (empresa_id, dia, tipo) do update set n = uso.n + excluded.n`, [emp.id, t, n]).catch(e => console.error('Uso:', e.message)); }, 30000); };
       const salvar = st => q('insert into estado (empresa_id, dados, atualizado) values ($1, $2::jsonb, now()) on conflict (empresa_id) do update set dados = excluded.dados, atualizado = now()', [emp.id, JSON.stringify(st)]).catch(e => console.error(`Estado de ${slug}:`, e.message));
-      return montar(emp, usuarios, agentes, est[0] ? est[0].dados : null, {salvar, uso});
+      const gravaDominio = async v => { try { await q('update empresas set dominio = $2 where id = $1', [emp.id, v || null]); } catch (e) { if (/23505|duplicate|HTTP 400/.test(e.message)) throw Object.assign(new Error('em uso'), {code: 'EM_USO'}); throw e; } };
+      return montar(emp, usuarios, agentes, est[0] ? est[0].dados : null, {salvar, uso, gravaDominio});
     }};
 }
 
