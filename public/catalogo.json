@@ -63,7 +63,13 @@
           "curto": "Resume os recados"
         }
       ],
-      "frase": "Recebe quem chega ao site e não deixa ninguém sem resposta."
+      "frase": "Recebe quem chega ao site e não deixa ninguém sem resposta.",
+      "detalhe": "É o primeiro contato de quem chega ao site da empresa, a qualquer hora. Conversa de forma natural, apresenta a empresa com as informações que você cadastrou e entende o que a pessoa procura. Quando o assunto pede uma pessoa, anota nome, contato e assunto e deixa o recado organizado para a equipe.",
+      "limites": [
+        "Só sabe o que você cadastrou sobre a empresa: não inventa preço, prazo nem endereço.",
+        "Não marca horário nem fecha negócio: anota e passa para a equipe.",
+        "Não acessa e-mail, agenda ou sistemas da empresa."
+      ]
     },
     {
       "id": "comercial",
@@ -105,7 +111,13 @@
           "curto": "Roteiros de venda"
         }
       ],
-      "frase": "Prepara propostas e respostas para o time de vendas."
+      "frase": "Prepara propostas e respostas para o time de vendas.",
+      "detalhe": "Apoia quem vende. A partir do que a equipe conta, prepara propostas, respostas a clientes e roteiros de abordagem, sempre em rascunho. Também lê os recados da recepção e sugere como responder cada um.",
+      "limites": [
+        "Não envia nada a clientes: tudo sai como rascunho para alguém revisar.",
+        "Não define preço, desconto nem prazo por conta própria.",
+        "Não acessa o seu CRM nem o WhatsApp da empresa."
+      ]
     },
     {
       "id": "marketing",
@@ -147,7 +159,13 @@
           "curto": "Campanhas"
         }
       ],
-      "frase": "Escreve o conteúdo da semana para você aprovar."
+      "frase": "Escreve o conteúdo da semana para você aprovar.",
+      "detalhe": "Cuida do conteúdo. Escreve posts, legendas, e-mails e ideias de campanha no tom da empresa, e organiza o calendário da semana para a equipe aprovar.",
+      "limites": [
+        "Não publica em redes sociais: entrega o texto pronto para aprovação.",
+        "Não cria imagens nem vídeos, só o texto e o roteiro.",
+        "Não vê as métricas das suas contas."
+      ]
     },
     {
       "id": "financeiro",
@@ -189,7 +207,13 @@
           "curto": "Preço e margem"
         }
       ],
-      "frase": "Organiza as contas e avisa antes do vencimento."
+      "frase": "Organiza as contas e avisa antes do vencimento.",
+      "detalhe": "Ajuda a manter as contas em ordem. Organiza o que a equipe informar sobre contas a pagar e a receber, prepara resumos semanais e lembra vencimentos.",
+      "limites": [
+        "Trabalha só com os números que a equipe informar: não acessa banco nem sistema financeiro.",
+        "Não faz pagamentos nem emite boleto ou nota.",
+        "Não substitui o contador: não dá orientação fiscal definitiva."
+      ]
     },
     {
       "id": "suporte",
@@ -231,7 +255,13 @@
           "curto": "Respostas-padrão"
         }
       ],
-      "frase": "Explica o difícil de um jeito simples para o cliente."
+      "frase": "Explica o difícil de um jeito simples para o cliente.",
+      "detalhe": "Ajuda no atendimento depois da venda. Escreve respostas de suporte, monta perguntas frequentes e cria tutoriais passo a passo, com linguagem simples.",
+      "limites": [
+        "Não responde o cliente sozinho: prepara a resposta para a equipe enviar.",
+        "Quando não sabe um procedimento, avisa em vez de inventar.",
+        "Não acessa os sistemas nem os dados dos seus clientes."
+      ]
     }
   ]
 }
