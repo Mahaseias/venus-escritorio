@@ -17,7 +17,7 @@ const STATIC = {
   '/fachada3d.js': ['fachada3d.js', 'text/javascript; charset=utf-8']
 };
 const files = Object.fromEntries(Object.entries(STATIC).map(([k, [f, t]]) => [k, [readFileSync(pub(f)), t]]));
-const assets = new Map();
+const assets = new Map(), etags = new Map();
 const ETICA_BASE = readFileSync(pub('etica.md'), 'utf8');
 
 /* ============ um escritório por empresa ============
@@ -594,7 +594,13 @@ async function rota(req, res, url, path) {
       const asset = /^\/(vendor|models|cat)\/((?:[\w-]+\/)*[\w.-]+\.(js|glb|png|jpg))$/.exec(path);
       if (asset && !path.includes('..')) {
         if (!assets.has(path)) { try { assets.set(path, readFileSync(pub(path.slice(1)))); } catch { return send(404, {}); } }
-        return send(200, assets.get(path), {js: 'text/javascript; charset=utf-8', glb: 'model/gltf-binary', png: 'image/png', jpg: 'image/jpeg'}[asset[3]], {'Cache-Control': 'public, max-age=86400'});
+        const tipo = {js: 'text/javascript; charset=utf-8', glb: 'model/gltf-binary', png: 'image/png', jpg: 'image/jpeg'}[asset[3]];
+        // bonecos mudam (estúdio, correções): o navegador confere a cada visita se o arquivo ainda é o mesmo, em vez de guardar por um dia
+        if (asset[1] === 'models') { if (!etags.has(path)) etags.set(path, '"' + createHash('sha1').update(assets.get(path)).digest('hex').slice(0, 20) + '"');
+          const et = etags.get(path), h = {'Cache-Control': 'no-cache', ETag: et};
+          if (req.headers['if-none-match'] === et) { res.writeHead(304, h); return res.end(); }
+          return send(200, assets.get(path), tipo, h); }
+        return send(200, assets.get(path), tipo, {'Cache-Control': 'public, max-age=86400'});
       }
       if (path === '/health') return send(200, {ok: true});
       if (path === '/api/office') return send(200, office(user));
