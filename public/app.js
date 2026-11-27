@@ -546,6 +546,43 @@ async function openRecados(){
 }
 el('breun').onclick=()=>panel==='reunioes'?openFicha(null):openReunioes();el('brec').onclick=()=>panel==='recados'?openFicha(null):openRecados();
 
+/* ---------- estúdio de personagens (só equipe) ---------- */
+let EST=null,estGlb=null,estOut=null,estPrev=null;
+const PROMPT_BONECO='Full body character, front view, standing in A-pose (arms slightly away from the body, legs slightly apart), neutral expression, plain white background, even lighting, no shadows, stylized 3D game character look. [descreva aqui a pessoa: idade, cabelo, roupa]';
+function baixar(blob,nome){const a=h('a',{href:URL.createObjectURL(blob),download:nome});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+async function openEstudio(){
+  const d=el('est'),b=el('estb');b.replaceChildren(h('p',{class:'muted'},'Carregando o estúdio…'));d.showModal();
+  let info;try{EST=EST||await import('/estudio.js');const r=await fetch('/api/estudio',{cache:'no-store'});if(!r.ok)throw 0;info=await r.json()}catch{b.replaceChildren(h('p',{class:'cerr'},'Não foi possível carregar o estúdio neste navegador.'));return}
+  const st=()=>h('p',{class:'est-st',role:'status'}),say=(n,t,err)=>{n.textContent=t;n.className='est-st'+(err?' e':'')};
+  const s1=st(),s2=st(),s3=st();
+  const fGlb=h('input',{type:'file',accept:'.glb,model/gltf-binary'}),fFbx=h('input',{type:'file',accept:'.fbx'});
+  const b1=h('button',{class:'cta sm'},'Gerar pacote para o Mixamo'),b2=h('button',{class:'cta sm'},'Montar personagem');
+  const cv=h('canvas',{id:'estcv',hidden:true}),poses=h('div',{class:'prow',hidden:true,style:'justify-content:flex-start'},[['idle','Parada'],['walk','Andando'],['sit','Sentada']].map(([k,t])=>h('button',{class:'ghost sm',type:'button',onclick:()=>estPrev&&estPrev.tocar(k)},t)));
+  const sel=h('select',{},info.agentes.map(a=>h('option',{value:a.id},a.nome+(a.proprio?' (já tem boneco próprio)':''))));
+  const b3=h('button',{class:'cta sm',disabled:true},'Publicar no escritório'),b4=h('button',{class:'ghost sm',disabled:true},'Baixar arquivo');
+  const ler=async f=>{const buf=await f.arrayBuffer();return buf};
+  b1.onclick=async()=>{const f=fGlb.files[0];if(!f){say(s1,'Escolha o arquivo .glb baixado do Hunyuan3D.',1);return}b1.disabled=true;say(s1,'Convertendo…');
+    try{estGlb=await ler(f);const r=EST.glbParaMixamo(estGlb);baixar(r.zip,'personagem-para-mixamo.zip');say(s1,`Pacote baixado (${r.faces.toLocaleString('pt-BR')} faces). Suba esse zip no Mixamo, sem descompactar.`)}catch(e){say(s1,e.message||'Não consegui converter este arquivo.',1)}b1.disabled=false};
+  b2.onclick=async()=>{const f=fFbx.files[0];if(!estGlb&&fGlb.files[0])estGlb=await ler(fGlb.files[0]);
+    if(!estGlb){say(s2,'Escolha também o .glb do passo 2: a pintura vem dele.',1);return}if(!f){say(s2,'Escolha o arquivo .fbx baixado do Mixamo.',1);return}
+    b2.disabled=true;say(s2,'Montando o personagem… pode levar meio minuto.');
+    try{const r=await EST.montar(estGlb,await ler(f),sel.value);estOut=r.bytes;if(estPrev)estPrev.fechar();cv.hidden=false;poses.hidden=false;estPrev=await EST.previa(cv,estOut);
+      say(s2,`Pronto: ${r.info.ossos} ossos, ${(estOut.length/1048576).toFixed(1)} MB. Gire com o mouse e teste as três poses antes de publicar.`);b3.disabled=!info.github;b4.disabled=false}
+    catch(e){say(s2,e.message||'Não consegui montar o personagem.',1)}b2.disabled=false};
+  b4.onclick=()=>estOut&&baixar(new Blob([estOut],{type:'model/gltf-binary'}),sel.value+'.glb');
+  b3.onclick=async()=>{if(!estOut)return;const nome=sel.options[sel.selectedIndex].text;if(!confirm(`Trocar o boneco de ${nome} no escritório?`))return;b3.disabled=true;say(s3,'Enviando…');
+    try{const r=await fetch('/api/estudio/publicar?agente='+encodeURIComponent(sel.value),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:estOut});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.erro||'Não foi possível publicar.');
+      say(s3,'Publicado. O escritório reinicia sozinho e o boneco novo aparece em uns 2 minutos (recarregue a página).');log(`${me.nome} publicou um boneco novo para ${nome}`)}catch(e){say(s3,e.message,1)}b3.disabled=false};
+  b.replaceChildren(h('h3',{},'Estúdio de personagens'),h('p',{class:'muted small'},'Transforma uma imagem em um boneco 3D animado para um agente. Os passos 1, 2 e 4 acontecem em sites gratuitos de fora; o estúdio faz as conversões.'),
+    h('div',{class:'card'},h('h5',{},'1 · Imagem no Gemini'),h('p',{},'Peça o personagem de corpo inteiro, de frente, com os braços um pouco afastados e fundo branco. Modelo de pedido:'),h('pre',{},PROMPT_BONECO)),
+    h('div',{class:'card'},h('h5',{},'2 · Modelo 3D no Hunyuan3D'),h('p',{},'Suba a imagem em ',h('a',{href:'https://huggingface.co/spaces/tencent/Hunyuan3D-2.1',target:'_blank',rel:'noopener',style:'color:var(--accent2)'},'huggingface.co/spaces/tencent/Hunyuan3D-2.1'),', gere com textura e, na aba Export, escolha glb, marque Include Texture e Simplify Mesh (20000), clique em Transform e baixe.')),
+    h('div',{class:'card'},h('h5',{},'3 · Converter para o Mixamo'),h('p',{},'Escolha o .glb baixado:'),fGlb,h('div',{class:'prow'},h('span',{}),b1),s1),
+    h('div',{class:'card'},h('h5',{},'4 · Esqueleto no Mixamo'),h('p',{},'Em ',h('a',{href:'https://www.mixamo.com',target:'_blank',rel:'noopener',style:'color:var(--accent2)'},'mixamo.com'),': Upload Character, suba o zip, marque queixo, pulsos, cotovelos, joelhos e virilha, e avance até o fim. Depois clique em Download com Format "FBX Binary" e Pose "T-pose". Não precisa baixar animações.')),
+    h('div',{class:'card'},h('h5',{},'5 · Montar e conferir'),h('p',{},'Para qual agente é o boneco?'),sel,h('p',{},'Escolha o .fbx baixado do Mixamo:'),fFbx,h('div',{class:'prow'},h('span',{}),b2),s2,cv,poses),
+    h('div',{class:'card'},h('h5',{},'6 · Publicar'),h('p',{},info.github?'Publica o boneco no escritório para o agente escolhido no passo 5.':'A publicação automática ainda não está ligada (falta o GITHUB_TOKEN no Render). Por enquanto, baixe o arquivo e envie para quem cuida do sistema.'),h('div',{class:'prow'},b4,b3),s3));
+}
+el('best').onclick=openEstudio;el('estclose').onclick=()=>el('est').close();el('est').addEventListener('close',()=>{if(estPrev){estPrev.fechar();estPrev=null}});
+
 /* ---------- login ---------- */
 function openLogin(){el('lerr').textContent='';el('login').showModal();el('lemail').focus()}
 el('lform').onsubmit=async e=>{

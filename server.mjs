@@ -10,13 +10,17 @@ const STATIC = {
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/fachada.jpg': ['fachada.jpg', 'image/jpeg'],
   '/office3d.js': ['office3d.js', 'text/javascript; charset=utf-8'],
-  '/recepcao3d.js': ['recepcao3d.js', 'text/javascript; charset=utf-8']
+  '/recepcao3d.js': ['recepcao3d.js', 'text/javascript; charset=utf-8'],
+  '/estudio.js': ['estudio.js', 'text/javascript; charset=utf-8']
 };
 const files = Object.fromEntries(Object.entries(STATIC).map(([k, [f, t]]) => [k, [readFileSync(pub(f)), t]]));
 const assets = new Map();
 const cfg = JSON.parse(readFileSync(pub('agents.json')));
 const SETORES = cfg.setores, FUNC = cfg.funcionarios, TZ = cfg.fuso || 'America/Cuiaba';
 const byId = Object.fromEntries(FUNC.map(f => [f.id, f]));
+// boneco próprio: se existir public/models/c/<id>.glb (publicado pelo estúdio), ele vale no lugar do modelo padrão
+const bonecoProprio = f => { if (/^[a-z0-9]{2,30}$/.test(f.id) && existsSync(pub(`models/c/${f.id}.glb`))) f.modelo = f.id; };
+FUNC.forEach(bonecoProprio);
 const ETICA = readFileSync(pub('etica.md'), 'utf8');
 const EMPRESA = cfg.empresa || {}, REUNIOES = cfg.reunioes || [];
 const SEC = byId[EMPRESA.secretaria] || FUNC[0];
@@ -28,6 +32,7 @@ const USERS = (() => {
   try { return JSON.parse(process.env.OFFICE_USERS || '[]').filter(u => u.email && u.hash).map(u => ({...u, email: u.email.toLowerCase()})); }
   catch { console.error('OFFICE_USERS inválido: use o formato gerado por scripts/gerar-senha.mjs'); return []; }
 })();
+const GH_TOKEN = process.env.GITHUB_TOKEN || '', GH_REPO = process.env.GITHUB_REPO || 'Mahaseias/venus-escritorio', GH_BRANCH = process.env.GITHUB_BRANCH || 'main';
 const TASK_TIMEOUT_MIN = Number(process.env.TASK_TIMEOUT_MIN || 90);
 
 /* ---------- estado ---------- */
@@ -131,7 +136,7 @@ async function carregarNotion() {
 /* agentes criados pelo desenvolvedor (com aprovação) entram na equipe sem novo deploy */
 const MODELOS = {feminino: ['character-female-a', 'character-female-b', 'character-female-c', 'character-female-e', 'character-female-f', 'character-female-d'], masculino: ['character-male-b', 'character-male-c', 'character-male-d', 'character-male-f', 'character-male-a', 'character-male-e']};
 const POR_SALA = 3;
-function ativarAgente(a) { const p = a.perfil; if (!p || !p.id || byId[p.id] || !SETORES.some(s => s.id === p.setor)) return; p.dinamico = true; FUNC.push(p); byId[p.id] = p; }
+function ativarAgente(a) { const p = a.perfil; if (!p || !p.id || byId[p.id] || !SETORES.some(s => s.id === p.setor)) return; p.dinamico = true; bonecoProprio(p); FUNC.push(p); byId[p.id] = p; }
 const salvarAgente = a => notionSalvar(a, {titulo: `Agente: ${a.perfil.nome} (${a.status})`, rotina: 'agente-novo', func: (FUNC.find(f => f.setor === 'dev') || SEC).id, resumo: `${a.perfil.nome} · ${a.perfil.cargo} · ${a.status}${a.por ? ' por ' + a.por : ''}`});
 agentesNovos.filter(a => a.status === 'aprovado').forEach(a => setTimeout(() => ativarAgente(a)));
 carregarNotion(); setInterval(carregarNotion, 120000);
@@ -575,6 +580,10 @@ http.createServer(async (req, res) => {
           agentes: agentesNovos.filter(a => a.status === 'pendente').map(({pg, ...a}) => a),
           agora: reuniaoAgora && !reuniaoAgora.pronta ? reuniaoAgora.tipo : null, reunioes: reunioes.slice(-20).reverse().map(pubReuniao)});
       }
+      if (path === '/api/estudio') {
+        if (!user) return send(401, {erro: 'Faça login'});
+        return send(200, {github: !!GH_TOKEN, agentes: FUNC.map(f => ({id: f.id, nome: f.nome, proprio: f.modelo === f.id}))});
+      }
       if (path === '/api/recados') {
         if (!user) return send(401, {erro: 'Faça login'});
         return send(200, recados.slice(-50).reverse().map(pubRecado));
@@ -694,6 +703,24 @@ http.createServer(async (req, res) => {
       }
       p.status = acao === 'aprovar' ? 'aprovada' : 'recusada'; p.por = quem; p.quando = Date.now(); save(); salvarReuniao(r);
       return send(200, pubReuniao(r));
+    }
+    if (path === '/api/estudio/publicar') {
+      const f = byId[url.searchParams.get('agente')];
+      if (!f || !/^[a-z0-9]{2,30}$/.test(f.id)) return send(400, {erro: 'Agente inválido'});
+      if (!GH_TOKEN) return send(503, {erro: 'Falta a variável GITHUB_TOKEN no Render para o estúdio publicar sozinho. Baixe o arquivo e envie pelo chat.'});
+      const partes = []; let total = 0;
+      for await (const c of req) { total += c.length; if (total > 12 * 1024 * 1024) return send(413, {erro: 'Arquivo grande demais (limite de 12 MB).'}); partes.push(c); }
+      const glb = Buffer.concat(partes);
+      if (glb.length < 1000 || glb.readUInt32LE(0) !== 0x46546C67) return send(400, {erro: 'O arquivo enviado não é um GLB.'});
+      if (!gasta('estudio', 20)) return send(429, {erro: 'Limite de publicações por dia atingido.'});
+      const api = `https://api.github.com/repos/${GH_REPO}/contents/public/models/c/${f.id}.glb`, hd = {'Authorization': 'Bearer ' + GH_TOKEN, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'venus-escritorio', 'Content-Type': 'application/json'};
+      try {
+        const atual = await fetch(api + '?ref=' + GH_BRANCH, {headers: hd, signal: AbortSignal.timeout(20000)});
+        const sha = atual.ok ? (await atual.json()).sha : undefined;
+        const r = await fetch(api, {method: 'PUT', headers: hd, signal: AbortSignal.timeout(60000), body: JSON.stringify({message: `Estúdio: boneco 3D de ${f.nome} (por ${user.nome || user.email})`, content: glb.toString('base64'), branch: GH_BRANCH, ...(sha ? {sha} : {})})});
+        if (!r.ok) { console.error('Estúdio (GitHub):', r.status, (await r.text()).slice(0, 200)); return send(502, {erro: r.status === 401 || r.status === 403 || r.status === 404 ? 'O GitHub recusou o acesso. Confira o GITHUB_TOKEN e a permissão de escrita no repositório.' : 'O GitHub não aceitou o arquivo agora. Tente de novo.'}); }
+        return send(201, {ok: true});
+      } catch (e) { console.error('Estúdio:', e.message); return send(502, {erro: 'Não consegui falar com o GitHub agora.'}); }
     }
     if (path === '/api/agentes') {
       const {id, acao} = await readJSON(req, 512), quem = user.nome || user.email;

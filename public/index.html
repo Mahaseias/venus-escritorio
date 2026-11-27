@@ -165,6 +165,10 @@ li.open .tbody{display:block}
 .prop .prow{justify-content:flex-end;flex-wrap:wrap}.prop .cta{white-space:nowrap}
 .sub2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:14px 0 2px}
 details.more summary{cursor:pointer;color:var(--accent2);font-size:12.5px;margin-top:8px}
+#est{width:min(760px,96vw);max-height:92vh;overflow:auto}#est h3{font:600 22px Georgia,serif;margin:0 0 4px}#est .card p{font-size:13px}#est input[type=file],#est select{margin-top:8px;font:inherit;font-size:13px;padding:8px}#est select{background:#120f1c;border:1px solid #3a3156;border-radius:9px;color:var(--text)}
+#est pre{white-space:pre-wrap;background:#120f1c;border-radius:8px;padding:8px 10px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;margin:8px 0 0}
+#estcv{width:100%;height:300px;display:block;border-radius:10px;background:radial-gradient(ellipse at center,#2a2342,#15121f);margin-top:10px;touch-action:none}
+.est-st{font-size:12.5px;margin:8px 0 0;color:var(--accent2)}.est-st.e{color:#ffb3b3}
 #etica{width:min(720px,94vw);max-height:86vh;overflow:auto}
 #etica h3{font:600 22px Georgia,serif;margin:0 0 6px}#etica h4{margin:16px 0 4px;color:var(--accent2);font-size:14px}#etica ul{margin:4px 0;padding-left:20px}#etica li{margin:3px 0}#etica p{margin:6px 0;color:#ddd5ea}
 
@@ -212,6 +216,7 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
     <span class="pill" id="clock">--:--</span>
     <button class="ghost" id="breun">Reuniões<span class="badge" id="bprop" hidden></span></button>
     <button class="ghost" id="brec">Recados<span class="badge" id="brecn" hidden></span></button>
+    <button class="ghost" id="best">Estúdio</button>
     <button class="ghost" id="betica">Ética</button>
     <button class="ghost" id="tour" aria-pressed="false">Modo demonstração</button>
     <span id="who"></span>
@@ -247,6 +252,7 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
   </form>
 </dialog>
 
+<dialog id="est" aria-label="Estúdio de personagens"><div id="estb"></div><div class="drow"><button class="cta sm" id="estclose">Fechar</button></div></dialog>
 <dialog id="etica" aria-label="Código de ética"><div id="eticab"></div><div class="drow"><button class="cta sm" id="eclose">Fechar</button></div></dialog>
 
 <script src="/app.js"></script>

@@ -132,3 +132,11 @@ OFFICE_TOKEN=teste node server.mjs   # http://localhost:3000
 - **Reuniões:** definidas em `reunioes` no `public/agents.json` (horário de Cuiabá). A ata traz o que falhou, a causa (confirmada ou hipótese) e propostas. Proposta só vira tarefa depois de aprovada por alguém logado.
 - **Código de ética:** `public/etica.md`. É injetado nas instruções de todos os agentes (conversa, tarefas, reuniões e recepção).
 - **Notion:** reuniões e recados são gravados na base de atividades (coluna `Dados`), para não se perderem quando o servidor reinicia.
+
+## Estúdio de personagens
+
+Botão **Estúdio** (só equipe). Converte o GLB do Hunyuan3D no pacote que o Mixamo aceita e, com o FBX do Mixamo (personagem em T-pose), monta o boneco animado reaproveitando as animações de `public/models/c/livia.glb`.
+
+- Publicação automática: defina `GITHUB_TOKEN` no Render (token fine-grained com *Contents: Read and write* só neste repositório). O estúdio grava `public/models/c/<id-do-agente>.glb` e o deploy automático do Render coloca no ar. Opcionais: `GITHUB_REPO`, `GITHUB_BRANCH`.
+- Sem o token, o estúdio só oferece o download do arquivo.
+- Qualquer agente com um arquivo `public/models/c/<id>.glb` usa esse boneco no lugar do modelo padrão.
