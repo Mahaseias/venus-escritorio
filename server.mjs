@@ -527,6 +527,7 @@ Regras:
 4. Sem enrolação: se não houve novidade, a reunião é curta e pode terminar sem propostas.
 5. Tom: colegas de trabalho, português do Brasil, frases curtas, respeito e crédito a quem fez. Uma ou duas falas por participante presente, com até 60 palavras cada. Só participantes presentes falam.
 6. Nunca use a expressão "pequenas empresas". Não cite dados pessoais de visitantes.
+7. Coerência entre a conversa e as listas: o que conta é o que está nas listas da ata. Toda ação que alguém propõe ou promete fazer nas falas ("vou verificar", "sugiro", "vale detalhar") e que dependa de aprovação entra em "propostas", com o responsável certo. Toda falha, atraso, erro ou pendência citada entra em "avisos". O resumo só pode dizer que há N propostas ou N avisos se as listas tiverem exatamente N itens; se a lista está vazia, o resumo não fala em propostas aguardando aprovação.
 
 ${ETICA}`;
     const dados = `Agora: ${dataHora(desde)} (horário de Cuiabá).\n\nPARTICIPANTES PRESENTES\n${part.map(id => pessoa(byId[id])).join('\n\n')}\n\nCOLEGAS AUSENTES (para ciência da equipe)\n${FUNC.filter(f => !part.includes(f.id)).map(pessoa).join('\n\n') || '- nenhum'}\n\nComputador que executa as tarefas da fila: ${desde - workerSeen < 60000 ? 'ligado' : 'desligado (tarefas da fila não estão sendo executadas)'}.\n\nRECADOS DA RECEPÇÃO NAS ÚLTIMAS 24 HORAS\n${recs.join('\n') || '- nenhum'}\n\nPROPOSTAS DE REUNIÕES ANTERIORES\n${pend.join('\n') || '- nenhuma'}\n\nÚLTIMA REUNIÃO\n${reunioes.length ? reunioes.at(-1).resumo : '- esta é a primeira'}`;
@@ -537,6 +538,10 @@ ${ETICA}`;
     let out = await pede([{role: 'user', content: pedido}]), a = ata(out);
     if (!a) { const txt = (out.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n').trim() || '(sem texto)';
       out = await pede([{role: 'user', content: pedido}, {role: 'assistant', content: txt}, {role: 'user', content: 'Você respondeu em texto. Chame a ferramenta registrar_ata com esse conteúdo.'}]); a = ata(out); }
+    // a conversa cita propostas mas a lista veio vazia: pede uma vez para cadastrar (senão não aparecem para aprovação)
+    if (a && !(a.propostas || []).length && /propost/i.test([a.resumo, ...(a.falas || []).map(f => f.texto || '')].join(' '))) {
+      const o2 = await pede([{role: 'user', content: pedido}, {role: 'assistant', content: 'Ata preliminar: ' + JSON.stringify(a).slice(0, 6000)}, {role: 'user', content: 'A ata fala em propostas, mas a lista "propostas" está vazia. Chame registrar_ata de novo com a ata completa: cada proposta citada vira um item da lista (func, titulo, descricao, motivo). Se de fato não há proposta, tire essa menção do resumo e das falas.'}]).catch(() => null);
+      const a2 = o2 && ata(o2); if (a2) a = a2; }
     if (!a || typeof a.resumo !== 'string') throw new Error('ata vazia');
     const s = (x, n) => String(x || '').trim().slice(0, n), ok = id => !!byId[id];
     const r = {id: randomUUID(), tipo: def.id, nome: def.nome, dia: hoje(new Date(desde)), inicio: desde, fim: Date.now(), convocada: convocada || null, participantes: part, resumo: s(a.resumo, 800),
