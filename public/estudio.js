@@ -105,7 +105,8 @@ export async function montar(glbBuf, fbxBuf, nome = 'personagem') {
   const antes = mesh.geometry.attributes.position.count;
   for (const k of Object.keys(mesh.geometry.attributes)) if (!['position', 'normal', 'uv', 'skinIndex', 'skinWeight'].includes(k)) mesh.geometry.deleteAttribute(k);
   mesh.geometry = mergeVertices(mesh.geometry, 1e-5);
-  mesh.material = new THREE.MeshStandardMaterial({map: tex, roughness: .85, metalness: 0, name: 'pele'});
+  // dois lados: o modelo gerado tem furinhos onde as pernas se encostavam; assim o furo mostra o tecido de dentro, não o fundo
+  mesh.material = new THREE.MeshStandardMaterial({map: tex, roughness: .85, metalness: 0, name: 'pele', side: THREE.DoubleSide});
   // animações da personagem de referência, ajustadas à altura do quadril deste esqueleto
   const ref = await new GLTFLoader().loadAsync(REF); let rmesh = null; ref.scene.traverse(o => { if (o.isSkinnedMesh && !rmesh) rmesh = o; });
   // altura do quadril acima da sola do pé (o modelo vem centrado no meio do corpo, não no chão)

@@ -530,8 +530,13 @@ Regras:
 
 ${ETICA}`;
     const dados = `Agora: ${dataHora(desde)} (horário de Cuiabá).\n\nPARTICIPANTES PRESENTES\n${part.map(id => pessoa(byId[id])).join('\n\n')}\n\nCOLEGAS AUSENTES (para ciência da equipe)\n${FUNC.filter(f => !part.includes(f.id)).map(pessoa).join('\n\n') || '- nenhum'}\n\nComputador que executa as tarefas da fila: ${desde - workerSeen < 60000 ? 'ligado' : 'desligado (tarefas da fila não estão sendo executadas)'}.\n\nRECADOS DA RECEPÇÃO NAS ÚLTIMAS 24 HORAS\n${recs.join('\n') || '- nenhum'}\n\nPROPOSTAS DE REUNIÕES ANTERIORES\n${pend.join('\n') || '- nenhuma'}\n\nÚLTIMA REUNIÃO\n${reunioes.length ? reunioes.at(-1).resumo : '- esta é a primeira'}`;
-    const out = await anthropic({model: CHAT_MODEL, max_tokens: 3000, system, tools: [ataTool()], tool_choice: {type: 'tool', name: 'registrar_ata'}, messages: [{role: 'user', content: dados}]}, 120000);
-    const a = (out.content || []).find(c => c.type === 'tool_use')?.input;
+    // sem obrigar a ferramenta (o modelo atual recusa essa opção): pede no texto e, se vier só texto, pede de novo uma vez
+    const pedido = dados + '\n\nRegistre a ata agora chamando a ferramenta registrar_ata. Não responda em texto.';
+    const ata = o => (o.content || []).find(c => c.type === 'tool_use' && c.name === 'registrar_ata')?.input;
+    const pede = messages => anthropic({model: CHAT_MODEL, max_tokens: 3000, system, tools: [ataTool()], messages}, 120000);
+    let out = await pede([{role: 'user', content: pedido}]), a = ata(out);
+    if (!a) { const txt = (out.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n').trim() || '(sem texto)';
+      out = await pede([{role: 'user', content: pedido}, {role: 'assistant', content: txt}, {role: 'user', content: 'Você respondeu em texto. Chame a ferramenta registrar_ata com esse conteúdo.'}]); a = ata(out); }
     if (!a || typeof a.resumo !== 'string') throw new Error('ata vazia');
     const s = (x, n) => String(x || '').trim().slice(0, n), ok = id => !!byId[id];
     const r = {id: randomUUID(), tipo: def.id, nome: def.nome, dia: hoje(new Date(desde)), inicio: desde, fim: Date.now(), convocada: convocada || null, participantes: part, resumo: s(a.resumo, 800),
