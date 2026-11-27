@@ -72,6 +72,26 @@ export function glbParaMixamo(buf) {
 
 /* ---------- passo 2: FBX do Mixamo + pintura do GLB -> boneco animado ---------- */
 const restY = (mesh, bone) => { const i = mesh.skeleton.bones.indexOf(bone); return new THREE.Vector3().setFromMatrixPosition(mesh.skeleton.boneInverses[i].clone().invert()).y; };
+/* Os movimentos vêm de outro corpo. Cada pessoa é gerada com braços e pernas em ângulos um pouco diferentes,
+   então copiar as rotações direto deixa o ombro levantado. Aqui cada osso de braço e perna é corrigido para
+   apontar na mesma direção que apontava na personagem de origem; os demais mantêm a postura própria. */
+const SEGUE = {Arm: 'ForeArm', ForeArm: 'Hand', UpLeg: 'Leg', Leg: 'Foot'};
+function repouso(mesh) {
+  const r = {}; mesh.skeleton.bones.forEach((b, i) => { const m = mesh.skeleton.boneInverses[i].clone().invert();
+    const p = new THREE.Vector3(), q = new THREE.Quaternion(), e = new THREE.Vector3(); m.decompose(p, q, e); r[b.name] = {p, q, pai: b.parent && b.parent.isBone ? b.parent.name : null}; });
+  return r;
+}
+function adaptar(clips, origem, destino) {
+  const A = repouso(origem), B = repouso(destino), I = new THREE.Quaternion();
+  const dir = (R, n) => { const m = /^mixamorig(Left|Right)(\w+)$/.exec(n); const f = m && SEGUE[m[2]] && R['mixamorig' + m[1] + SEGUE[m[2]]];
+    return f ? f.p.clone().sub(R[n].p).normalize() : null; };
+  const C = n => { if (!n || !A[n] || !B[n]) return I; const a = dir(A, n), b = dir(B, n); return a && b ? new THREE.Quaternion().setFromUnitVectors(b, a) : I; };
+  const q = (R, n) => n && R[n] ? R[n].q : I;
+  for (const c of clips) for (const t of c.tracks) { const [n, prop] = t.name.split('.'); if (prop !== 'quaternion' || !A[n] || !B[n]) continue;
+    const pre = q(B, B[n].pai).clone().invert().multiply(C(B[n].pai).clone().invert()).multiply(q(A, A[n].pai));
+    const pos = q(A, n).clone().invert().multiply(C(n)).multiply(q(B, n)); const v = new THREE.Quaternion();
+    for (let i = 0; i < t.values.length; i += 4) { v.fromArray(t.values, i); v.premultiply(pre).multiply(pos).normalize(); v.toArray(t.values, i); } }
+}
 export async function montar(glbBuf, fbxBuf, nome = 'personagem') {
   const g = lerGLB(glbBuf);
   const bmp = await createImageBitmap(new Blob([g.imagem], {type: g.mime}));
@@ -88,10 +108,13 @@ export async function montar(glbBuf, fbxBuf, nome = 'personagem') {
   mesh.material = new THREE.MeshStandardMaterial({map: tex, roughness: .85, metalness: 0, name: 'pele'});
   // animações da personagem de referência, ajustadas à altura do quadril deste esqueleto
   const ref = await new GLTFLoader().loadAsync(REF); let rmesh = null; ref.scene.traverse(o => { if (o.isSkinnedMesh && !rmesh) rmesh = o; });
-  const k = restY(mesh, hips) / restY(rmesh, rmesh.skeleton.bones.find(b => b.name === 'mixamorigHips'));
+  // altura do quadril acima da sola do pé (o modelo vem centrado no meio do corpo, não no chão)
+  const doChao = (m, osso) => { m.geometry.computeBoundingBox(); return restY(m, osso) - m.geometry.boundingBox.min.y; };
+  const k = doChao(mesh, hips) / doChao(rmesh, rmesh.skeleton.bones.find(b => b.name === 'mixamorigHips'));
   const nomes = new Set(mesh.skeleton.bones.map(b => b.name));
   const clips = ['idle', 'walk', 'sit'].map(n => { const c = ref.animations.find(a => a.name === n).clone();
     c.tracks = c.tracks.filter(t => nomes.has(t.name.split('.')[0])); for (const t of c.tracks) if (t.name === 'mixamorigHips.position') t.values = t.values.map(v => v * k); return c; });
+  adaptar(clips, rmesh, mesh);
   mesh.geometry.computeBoundingBox(); const bb = mesh.geometry.boundingBox, alt = bb.max.y - bb.min.y;
   const root = new THREE.Group(); root.name = nome; root.userData = {real: true};
   const inner = new THREE.Group(); inner.scale.setScalar(ALTURA / alt); inner.add(ch); root.add(inner);
