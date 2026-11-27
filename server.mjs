@@ -264,10 +264,10 @@ function turnoTexto(t) {
 const pubTask = t => ({ordem: t.ordem ?? t.criada, id: t.id, func: t.func, titulo: t.titulo, texto: t.texto, autor: t.autor, status: t.status, criada: t.criada, iniciada: t.iniciada || null, concluida: t.concluida || null, resultado: t.resultado || ''});
 function office(user) {
   if (!user) return {agora: Date.now(), fuso: TZ, logado: null, setores: [], funcionarios: [],
-    recepcao: {empresa: EMPRESA.nome || '', comercial: EMPRESA.comercial || null, id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY}};
+    recepcao: {cenario: EMPRESA.cenario || 'moderno', logo: EMPRESA.logo || '', empresa: EMPRESA.nome || '', comercial: EMPRESA.comercial || null, id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY}};
   const ativos = estado(), ra = reuniaoAtiva();
   return {
-    recepcao: {empresa: EMPRESA.nome || '', comercial: EMPRESA.comercial || null, id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY},
+    recepcao: {cenario: EMPRESA.cenario || 'moderno', logo: EMPRESA.logo || '', empresa: EMPRESA.nome || '', comercial: EMPRESA.comercial || null, id: SEC.id, nome: SEC.nome, cargo: SEC.cargo, modelo: SEC.modelo, setor: SEC.setor, ia: !!AI_KEY},
     reuniao: ra ? {nome: ra.nome, participantes: ra.participantes, ate: ra.desde + REUNIAO_MIN * 60000} : null,
     plano: X.plano ? X.plano() : null,
     pendencias: {propostas: reunioes.reduce((n, r) => n + r.propostas.filter(p => p.status === 'pendente').length, agentesNovos.filter(a => a.status === 'pendente').length), recados: recados.filter(r => !r.visto).length},
@@ -291,7 +291,7 @@ function office(user) {
 const AI_KEY = process.env.ANTHROPIC_API_KEY || '';
 const AI_BASE = process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com';
 const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-sonnet-5-5';
-const CHAT_DAILY = Number(process.env.CHAT_DAILY_LIMIT || 300);   // mensagens por pessoa por dia
+const CHAT_DAILY = Number((X.limites || {}).chat_dia || process.env.CHAT_DAILY_LIMIT || 300);   // mensagens por pessoa por dia
 const chatCount = new Map();
 function chatAllowed(email) {
   const k = email + '|' + new Date().toISOString().slice(0, 10), n = (chatCount.get(k) || 0) + 1;
@@ -401,7 +401,7 @@ const dataHora = t => new Intl.DateTimeFormat('pt-BR', {timeZone: TZ, day: '2-di
 
 /* ---------- recepção: visitantes conversam só com a secretária ---------- */
 const VIS_MODEL = process.env.VISITOR_MODEL || 'claude-haiku-5-5';
-const VIS_DAILY = Number(process.env.VISITOR_DAILY_LIMIT || 300);   // mensagens de visitantes por dia, somando todos
+const VIS_DAILY = Number((X.limites || {}).visitantes_dia || process.env.VISITOR_DAILY_LIMIT || 300);   // mensagens de visitantes por dia, somando todos
 const VIS_IP = 40, VIS_CONV = 25, VIS_CHARS = 800;
 const visitas = new Map();           // id do visitante -> {msgs, n, t, recado}
 function visita(req, criar = true) {
@@ -579,10 +579,10 @@ async function rota(req, res, url, path) {
   try {
     if (req.method === 'GET') {
       if (STATIC[path]) { const [buf, type] = files[path]; return send(200, buf, type, path === '/' ? {'Content-Security-Policy': CSP} : {'Cache-Control': 'public, max-age=300'}); }
-      const asset = /^\/(vendor|models)\/((?:[\w-]+\/)*[\w.-]+\.(js|glb|png))$/.exec(path);
+      const asset = /^\/(vendor|models|cat)\/((?:[\w-]+\/)*[\w.-]+\.(js|glb|png|jpg))$/.exec(path);
       if (asset && !path.includes('..')) {
         if (!assets.has(path)) { try { assets.set(path, readFileSync(pub(path.slice(1)))); } catch { return send(404, {}); } }
-        return send(200, assets.get(path), {js: 'text/javascript; charset=utf-8', glb: 'model/gltf-binary', png: 'image/png'}[asset[3]], {'Cache-Control': 'public, max-age=86400'});
+        return send(200, assets.get(path), {js: 'text/javascript; charset=utf-8', glb: 'model/gltf-binary', png: 'image/png', jpg: 'image/jpeg'}[asset[3]], {'Cache-Control': 'public, max-age=86400'});
       }
       if (path === '/health') return send(200, {ok: true});
       if (path === '/api/office') return send(200, office(user));
@@ -831,7 +831,7 @@ async function rota(req, res, url, path) {
     return send(e.code === 413 ? 413 : 400, {erro: 'Requisição inválida'});
   }
 }
-return {rota, equipe: () => FUNC.length, usuarios: () => usuarios().length};
+return {rota, avisar: d => novoRecado(d, 'formulario'), equipe: () => FUNC.length, usuarios: () => usuarios().length};
 }
 
 /* ============ todas as empresas ============ */
@@ -847,8 +847,60 @@ function abrir(slug) {
   }
   return escritorios.get(slug);
 }
+/* ---------- cadastro de novas empresas ---------- */
+const CATALOGO = JSON.parse(readFileSync(pub('catalogo.json')));
+const paginas = {'/criar': [readFileSync(pub('criar.html')), 'text/html; charset=utf-8'], '/criar.js': [readFileSync(pub('criar.js')), 'text/javascript; charset=utf-8'], '/catalogo.json': [readFileSync(pub('catalogo.json')), 'application/json; charset=utf-8']};
+const RESERVADOS = new Set(['venus', 'api', 'criar', 'admin', 'app', 'www', 'teste', 'demo', 'suporte', 'login']);
+const cadastros = new Map();
+const contaCad = (k, max) => { const d = new Date().toISOString().slice(0, 10), c = cadastros.get(k); if (!c || c.d !== d) { cadastros.set(k, {d, n: 1}); return true; } return ++c.n <= max; };
+const TESTE_DIAS = Number(process.env.TESTE_DIAS || 7);
+async function cadastro(req, res, url, path) {
+  const send = (code, data) => { res.writeHead(code, {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}); res.end(JSON.stringify(data)); };
+  const s = (x, n) => String(x ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+  try {
+    if (!repo.grava) return send(503, {erro: 'O cadastro não está disponível neste servidor.'});
+    if (req.method === 'GET') { const r = await repo.livre(s(url.searchParams.get('slug'), 40), s(url.searchParams.get('email'), 120).toLowerCase()); return send(200, {slug: r.slug && !RESERVADOS.has(url.searchParams.get('slug')), email: r.email}); }
+    if (process.env.CADASTRO === 'fechado') return send(403, {erro: 'O cadastro está fechado no momento. Fale com o Comercial.'});
+    const origin = req.headers.origin; if (origin && new URL(origin).host !== req.headers.host) return send(403, {erro: 'Origem não permitida'});
+    let body = ''; for await (const c of req) { body += c; if (body.length > 200000) return send(413, {erro: 'Dados grandes demais. Use um logo menor.'}); }
+    const d = JSON.parse(body || '{}'), e = d.empresa || {}, c = d.conta || {};
+    const slug = s(e.slug, 40).toLowerCase(), nome = s(e.nome, 60), email = s(c.email, 120).toLowerCase(), senha = String(c.senha || '');
+    if (!/^[a-z0-9](?:[a-z0-9-]{1,38})[a-z0-9]$/.test(slug) || RESERVADOS.has(slug)) return send(400, {erro: 'Endereço inválido: use de 3 a 40 letras minúsculas, números ou hífen.'});
+    if (nome.length < 2) return send(400, {erro: 'Informe o nome da empresa.'});
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return send(400, {erro: 'Informe um e-mail válido.'});
+    if (senha.length < 8 || senha.length > 100) return send(400, {erro: 'A senha precisa ter pelo menos 8 caracteres.'});
+    const logo = typeof e.logo === 'string' && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(e.logo) && e.logo.length <= 120000 ? e.logo : '';
+    const cenario = CATALOGO.cenarios.some(x => x.id === e.cenario) ? e.cenario : 'moderno', estilo = e.estilo === 'ultra' ? 'ultra' : 'padrao';
+    const usados = new Set(), slugs = new Set(), agentes = [];
+    for (const a of Array.isArray(d.agentes) ? d.agentes.slice(0, 5) : []) {
+      const cat = CATALOGO.agentes.find(x => x.id === a.catalogo); if (!cat || usados.has(cat.id)) continue; usados.add(cat.id);
+      const an = s(a.nome, 40) || cat.nome, fs = cat.funcoes.filter(f => (Array.isArray(a.funcoes) ? a.funcoes : []).includes(f.id));
+      const funcoes = fs.length ? fs : cat.funcoes.filter(f => f.padrao);
+      let base = an.normalize('NFD').replace(/[^a-zA-Z ]/g, '').trim().split(' ')[0].toLowerCase() || cat.id, sl = base, n = 2; while (slugs.has(sl)) sl = base + n++; slugs.add(sl);
+      agentes.push({slug: sl, nome: an, cargo: cat.cargo, setor: cat.setor, modelo: cat.modelo, catalogo: cat.id, funcoes: funcoes.map(f => f.id),
+        turno: cat.id === 'recepcionista' ? {dias: [0, 1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '22:00'} : {dias: [1, 2, 3, 4, 5, 6], inicio: '08:00', fim: '18:00'},
+        perfil: {bio: cat.bio, faz: funcoes.map(f => f.nome), hobbies: [], instrucoes: `Você é ${an}, ${cat.cargo} da ${nome}. Responda sempre em português do Brasil. ${cat.base}\nSuas funções:\n${funcoes.map(f => '- ' + f.instrucao).join('\n')}`}});
+    }
+    if (!usados.has('recepcionista')) return send(400, {erro: 'A recepcionista faz parte de todo escritório.'});
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    const livre = await repo.livre(slug, email);
+    if (!livre.slug) return send(409, {erro: 'Esse endereço já está em uso. Escolha outro.'});
+    if (!livre.email) return send(409, {erro: 'Já existe uma conta com esse e-mail.'});
+    if (!contaCad('ip:' + ip, 3) || !contaCad('todos', Number(process.env.CADASTROS_DIA || 40))) return send(429, {erro: 'Muitos cadastros hoje. Tente amanhã ou fale com o Comercial.'});
+    const salt = randomBytes(16), hash = 'scrypt$' + salt.toString('base64') + '$' + scryptSync(senha, salt, 32).toString('base64');
+    await repo.criar({empresa: {slug, nome, sobre: s(e.sobre, 600), oferece: (Array.isArray(e.oferece) ? e.oferece : []).map(x => s(x, 120)).filter(Boolean).slice(0, 8), site: s(e.site, 120), whatsapp: s(e.whatsapp, 20).replace(/\D/g, ''),
+      cenario, plano: 'teste', status: 'ativa', teste_ate: new Date(Date.now() + TESTE_DIAS * 864e5).toISOString(), limites: {estilo, logo, visitantes_dia: 30, chat_dia: 60}}, usuario: {email, nome: s(c.nome, 60) || email, hash}, agentes});
+    escritorios.delete(slug);
+    console.log(`Nova empresa: ${nome} (/e/${slug}) · ${agentes.length} agentes · estilo ${estilo}`);
+    if (estilo === 'ultra') venus.avisar({nome: s(c.nome, 60) || nome, contato: email, empresa: nome, assunto: 'Pedido de personagens ultra realistas', resumo: `A empresa ${nome} (/e/${slug}) se cadastrou pedindo os agentes no modo ultra realista. WhatsApp informado: ${s(e.whatsapp, 20) || 'não informado'}.`});
+    return send(201, {url: `/e/${slug}/`});
+  } catch (err) { console.error('Cadastro:', err.message); return send(400, {erro: 'Não foi possível concluir o cadastro. Confira os dados e tente de novo.'}); }
+}
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); let path = url.pathname, slug = 'venus';
+  if (req.method === 'GET' && paginas[path]) { const [buf, type] = paginas[path]; res.writeHead(200, {'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...(path === '/criar' ? {'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"} : {})}); return res.end(buf); }
+  if (path === '/api/cadastro') return cadastro(req, res, url, path);
   const m = /^\/e\/([a-z0-9-]{3,40})(\/.*)?$/.exec(path);
   if (m) { slug = m[1]; path = m[2] || '/'; }
   const esc = await abrir(slug);

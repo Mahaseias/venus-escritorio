@@ -421,7 +421,7 @@ async function openChat(id){
 
 /* ---------- recepção: a secretária atende visitantes ---------- */
 let rStage='inicio',mMsgs=[],rMsgs=[],rBusy=false,rLoaded=false,rErr='';
-addEventListener('r3d-ready',()=>{if(rec&&window.R3D){window.R3D.setModel(rec.modelo);if(BASE&&rec.empresa)window.R3D.setEmpresa(rec.empresa)}if(place==='rec')window.R3D.start()});
+addEventListener('r3d-ready',()=>{if(rec&&window.R3D){window.R3D.setModel(rec.modelo);cena()}if(place==='rec')window.R3D.start()});
 function openReception(){
   if(window.R3D&&rec)window.R3D.setModel(rec.modelo);
   if(!rLoaded){rLoaded=true;fetch(BASE+'/api/recepcao',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j.mensagens&&j.mensagens.length){rMsgs=j.mensagens;rStage='chat'}renderReception()}).catch(()=>{})}
@@ -623,10 +623,11 @@ function apply(list){
   funcs=list;sync();renderList();updateFicha(false);setConn();
 }
 let real=null,rec=null,reuniaoOn=false,marcaDe=null;
+function cena(){const R3=window.R3D;if(!BASE||!rec||!R3||!R3.setEstilo)return;R3.setEstilo(rec.cenario);if(rec.logo)R3.setLogo(rec.logo);else R3.setEmpresa(rec.empresa)}
 function marca(){ // nome da empresa na tela (a Venus já vem escrita no HTML)
   if(!BASE||!rec||!rec.empresa||marcaDe===rec.empresa)return;marcaDe=rec.empresa;
   document.querySelectorAll('.brand').forEach(b=>{for(const n of b.childNodes)if(n.nodeType===3&&n.textContent.trim()){n.textContent=rec.empresa.toUpperCase()+' ';break}});
-  document.title='Escritório virtual · '+rec.empresa;el('rback').hidden=true;if(window.R3D&&window.R3D.setEmpresa)window.R3D.setEmpresa(rec.empresa);
+  document.title='Escritório virtual · '+rec.empresa;el('rback').hidden=true;cena();
 }
 async function poll(once){
   try{const r=await fetch(BASE+'/api/office',{cache:'no-store'});if(!r.ok)throw 0;real=await r.json();

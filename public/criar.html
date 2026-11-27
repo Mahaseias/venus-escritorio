@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crie o escritório virtual da sua empresa</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M8 1l7 7-7 7-7-7z%22 fill=%22%239b6bd6%22/%3E%3C/svg%3E">
+<style>
+:root{--bg:#0e0c16;--panel:#161322;--panel2:#1d1a2c;--line:#2c2740;--text:#f3effa;--muted:#a59cb8;--accent:#9b6bd6;--accent2:#c9a6f2;--ok:#4ade80}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:980px;margin:0 auto;padding:28px 18px 80px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.18em;font-size:12px;color:var(--accent2)}
+.brand i{width:10px;height:10px;transform:rotate(45deg);background:var(--accent);display:inline-block;box-shadow:0 0 12px var(--accent)}
+h1{font:600 clamp(28px,4.4vw,44px)/1.1 Georgia,"Times New Roman",serif;margin:14px 0 8px}
+.lead{color:#d8d0e6;max-width:640px;margin:0 0 22px}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 18px;padding:0;list-style:none}
+.steps li{font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.steps li.on{background:#2a2142;border-color:var(--accent);color:var(--text)}.steps li.ok{color:var(--ok);border-color:#1f5a38}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
+h2{margin:0 0 4px;font-size:20px}.sub{color:var(--muted);margin:0 0 16px;font-size:14px}
+label{display:block;font-size:12.5px;color:var(--muted);margin-top:12px}
+input[type=text],input[type=email],input[type=password],input[type=tel],textarea{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a3156;border-radius:10px;color:var(--text);padding:10px 12px;font:inherit}
+textarea{resize:vertical;min-height:70px}
+input:focus-visible,textarea:focus-visible,button:focus-visible,.pick:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pick{background:var(--panel2);border:2px solid var(--line);border-radius:14px;padding:0;overflow:hidden;cursor:pointer;color:inherit;font:inherit;text-align:left;display:block;width:100%}
+.pick[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 3px rgba(155,107,214,.25)}
+.pick img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;background:#221c35}
+.pick .tx{padding:12px 14px}.pick b{display:block;font-size:15px}.pick span{color:var(--muted);font-size:13px}
+.tagp{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 8px;background:#3a3156;color:#e3d8f5;margin-top:8px}.tagp.g{background:#4a3a12;color:#ffd98a}
+.ag{background:var(--panel2);border:2px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:84px 1fr;gap:14px}
+.ag.on{border-color:var(--accent)}.ag img{width:84px;height:104px;object-fit:cover;border-radius:12px;background:linear-gradient(160deg,#2c2444,#1b1729)}
+.ag h3{margin:0;font-size:16px}.ag p{margin:2px 0 8px;color:var(--muted);font-size:13px}
+.ag .chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:#ddd5ea;margin:5px 0;cursor:pointer}
+.ag .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.sw{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.row{display:flex;justify-content:space-between;gap:10px;margin-top:20px;flex-wrap:wrap}
+.cta{background:var(--accent);border:0;border-radius:10px;padding:12px 22px;font:inherit;font-weight:600;color:#fff;cursor:pointer}.cta:hover{background:#ab7de3}.cta:disabled{opacity:.6;cursor:wait}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:10px;padding:11px 18px;color:var(--muted);font:inherit;cursor:pointer}.ghost:hover{color:var(--text)}
+.err{color:#ffb3b3;font-size:13.5px;min-height:20px;margin:12px 0 0}.hint{font-size:12px;color:var(--muted);margin:4px 0 0}
+.logo{display:flex;gap:12px;align-items:center;margin-top:6px}.logo img{height:54px;max-width:180px;object-fit:contain;background:#fff;border-radius:8px;padding:4px}
+.done{text-align:center;padding:40px 20px}.done h2{font:600 28px Georgia,serif}
+@media(max-width:760px){.two,.grid3,.grid2{grid-template-columns:1fr}.ag{grid-template-columns:64px 1fr}.ag img{width:64px;height:80px}}
+</style>
+</head>
+<body>
+<main>
+  <div class="brand"><i></i>VENUS TECNOLOGIA</div>
+  <h1>Crie o escritório virtual da sua empresa</h1>
+  <p class="lead">Uma recepção que atende quem chega ao seu site e uma equipe de agentes de IA que ajuda no dia a dia. Você escolhe o cenário e a equipe; em poucos minutos está no ar.</p>
+  <ol class="steps" id="steps"></ol>
+  <section class="card" id="box" aria-live="polite"></section>
+</main>
+<script src="/criar.js"></script>
+</body>
+</html>

@@ -16,20 +16,22 @@ function montar(emp, usuarios, agentes, estado, extras) {
     turno: a.turno && a.turno.inicio ? a.turno : {dias: [0, 1, 2, 3, 4, 5, 6], inicio: '08:00', fim: '18:00'}, rotinas: [], faz: (a.perfil || {}).faz || a.funcoes || [], hobbies: (a.perfil || {}).hobbies || [], bio: (a.perfil || {}).bio || '', instrucoes: (a.perfil || {}).instrucoes || ''}));
   const fone = soDigitos(emp.whatsapp), sec = funcionarios.find(f => f.setor === 'secretaria') || funcionarios[0];
   const cfg = {fuso: 'America/Cuiaba', setores: SETORES, funcionarios,
-    empresa: {nome: emp.nome, sobre: emp.sobre || '', oferece: emp.oferece || [], site: emp.site || '', secretaria: sec && sec.id,
+    empresa: {cenario: emp.cenario || 'moderno', estilo: (emp.limites || {}).estilo || 'padrao', logo: (emp.limites || {}).logo || '', nome: emp.nome, sobre: emp.sobre || '', oferece: emp.oferece || [], site: emp.site || '', secretaria: sec && sec.id,
       ...(fone.length >= 10 ? {comercial: {nome: 'Comercial', whatsapp: fone.length <= 11 ? '55' + fone : fone, exibicao: exibirFone(fone)}} : {})},
     reunioes: funcionarios.length > 1 ? [{id: 'alinhamento', nome: 'Alinhamento e estratégia', hora: '08:00', dias: [1, 2, 3, 4, 5], participantes: funcionarios.slice(0, 6).map(f => f.id),
       foco: 'Alinhar o dia: o que foi feito, o que falhou e por quê, recados da recepção e ideias para a empresa crescer.'}] : []};
   const lista = usuarios.map(u => ({email: String(u.email).toLowerCase(), nome: u.nome, hash: u.hash, papel: u.papel}));
   const ativo = () => emp.status === 'ativa' && (emp.plano !== 'teste' || !emp.teste_ate || Date.now() < new Date(emp.teste_ate).getTime());
-  return {cfg, X: {slug: emp.slug, estado, usuarios: () => lista, liberado: ativo,
+  return {cfg, X: {slug: emp.slug, estado, limites: emp.limites || {}, usuarios: () => lista, liberado: ativo,
     plano: () => ({plano: emp.plano, status: emp.status, ate: emp.teste_ate ? new Date(emp.teste_ate).getTime() : null, liberado: ativo()}), ...extras}};
 }
 
 function fake(arquivo) {
   let dados = {}; try { if (arquivo) dados = JSON.parse(readFileSync(arquivo, 'utf8')); } catch (e) { console.error('REPO_FAKE inválido:', e.message); }
   const estados = {};
-  return {tipo: arquivo ? 'arquivo de teste' : 'desligado (sem DATABASE_URL)',
+  return {tipo: arquivo ? 'arquivo de teste' : 'desligado (sem DATABASE_URL)', grava: !!arquivo,
+    async livre(slug, email) { return {slug: !dados[slug], email: !Object.values(dados).some(e => (e.usuarios || []).some(u => u.email === email))}; },
+    async criar(d) { dados[d.empresa.slug] = {empresa: d.empresa, usuarios: [d.usuario], agentes: d.agentes}; },
     async carregar(slug) { const e = dados[slug]; if (!e) return null;
       return montar({slug, ...e.empresa}, e.usuarios || [], e.agentes || [], estados[slug] || null, {salvar: st => { estados[slug] = JSON.parse(JSON.stringify(st)); }, uso() {}}); }};
 }
@@ -51,7 +53,17 @@ function neon(url) {
     }
   }
   q('select count(*)::int as n from empresas').then(r => console.log(`Banco conectado (${alvos[alvo]}) · ${r[0].n} empresas`)).catch(e => console.error('Banco indisponível:', e.message));
-  return {tipo: 'banco Neon', q,
+  return {tipo: 'banco Neon', q, grava: true,
+    async livre(slug, email) { const [r] = await q('select (select count(*) from empresas where slug = $1)::int as s, (select count(*) from usuarios where email = $2)::int as e', [slug, email]); return {slug: !r.s, email: !r.e}; },
+    async criar(d) { const e = d.empresa;
+      const [emp] = await q(`insert into empresas (slug, nome, sobre, oferece, site, whatsapp, cenario, plano, status, teste_ate, limites) values ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10::timestamptz,$11::jsonb) returning id`,
+        [e.slug, e.nome, e.sobre, JSON.stringify(e.oferece), e.site, e.whatsapp, e.cenario, e.plano, e.status, e.teste_ate, JSON.stringify(e.limites)]);
+      try {
+        await q('insert into usuarios (empresa_id, email, nome, hash, papel) values ($1,$2,$3,$4,$5)', [emp.id, d.usuario.email, d.usuario.nome, d.usuario.hash, 'dono']);
+        for (const a of d.agentes) await q('insert into agentes (empresa_id, slug, nome, cargo, setor, modelo, turno, perfil, funcoes, catalogo) values ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10)',
+          [emp.id, a.slug, a.nome, a.cargo, a.setor, a.modelo, JSON.stringify(a.turno), JSON.stringify(a.perfil), JSON.stringify(a.funcoes), a.catalogo]);
+      } catch (err) { await q('delete from empresas where id = $1', [emp.id]).catch(() => {}); throw err; }   // cadastro pela metade não fica no banco
+    },
     async carregar(slug) {
       const [emp] = await q('select * from empresas where slug = $1', [slug]); if (!emp) return null;
       const [usuarios, agentes, est] = await Promise.all([q('select email, nome, hash, papel from usuarios where empresa_id = $1', [emp.id]),

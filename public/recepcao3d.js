@@ -42,7 +42,7 @@ try {
     for (let i = 0; i < 5000; i++) { x.fillStyle = `rgba(${rnd() > .5 ? '255,255,255' : '30,28,26'},${rnd() * .06})`; x.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 4, 1 + rnd() * 3); }
     x.strokeStyle = 'rgba(40,36,34,.5)'; x.lineWidth = 2; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo(i * w / 4, 0); x.lineTo(i * w / 4, h); x.stroke(); } x.beginPath(); x.moveTo(0, h / 2); x.lineTo(w, h / 2); x.stroke();
     x.fillStyle = 'rgba(30,28,26,.6)'; for (let i = 0; i < 4; i++) for (const yy of [h * .12, h * .62]) for (const dx of [.12, .88]) { x.beginPath(); x.arc((i + dx) * w / 4, yy, 3, 0, 7); x.fill(); } });
-  box(5.3, H, .2, new THREE.MeshStandardMaterial({map: concT, roughness: .9}), -1.35, H / 2, BZ - .1);
+  const paredeM = new THREE.MeshStandardMaterial({map: concT, roughness: .9}); box(5.3, H, .2, paredeM, -1.35, H / 2, BZ - .1);
   // letreiro iluminado
   const signT = canvasTex(1024, 320, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle';
     const spaced = (txt, y, size, gap, weight) => { x.font = `${weight} ${size}px "Helvetica Neue",Helvetica,Arial,sans-serif`; const ws = [...txt].map(ch => x.measureText(ch).width); let px = (w - ws.reduce((a, b) => a + b, 0) - gap * (txt.length - 1)) / 2;
@@ -60,7 +60,7 @@ try {
   const wood = std('#9a633c', {roughness: .6}), woodD = std('#5e3920', {roughness: .8});
   box(2.7, H, .16, woodD, 2.65, H / 2, BZ - .08);
   for (let i = 0; i < 20; i++) box(.075, H - .5, .07, wood, 1.38 + i * .134, (H - .5) / 2, BZ + .04, false);
-  box(2.7, .05, .09, glow('#a56bff'), 2.65, H - .42, BZ + .06, false);
+  const ledM = glow('#a56bff'); box(2.7, .05, .09, ledM, 2.65, H - .42, BZ + .06, false);
   const led = new THREE.PointLight('#9b5cff', 7, 5, 1.6); led.position.set(2.65, H - .7, BZ + .7); scene.add(led);
   // lateral esquerda: pele de vidro com montantes escuros e o entardecer lá fora
   const dark = std('#17151c', {roughness: .5, metalness: .4});
@@ -81,9 +81,9 @@ try {
   const CX = .2, CZ = -1.45;
   box(2.5, .5, .52, woodD, CX, .25, CZ);
   for (let i = 0; i < 19; i++) box(.07, .44, .04, wood, CX - 1.17 + i * .13, .25, CZ + .27, false);
-  box(2.66, .05, .66, std('#ece7df', {roughness: .35}), CX, .525, CZ);
+  const tampoM = std('#ece7df', {roughness: .35}); box(2.66, .05, .66, tampoM, CX, .525, CZ);
   box(2.5, .025, .03, glow('#ffc98a'), CX, .488, CZ + .3, false);
-  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(.2, .2), glow('#b98cf5')); plaque.rotation.z = Math.PI / 4; plaque.position.set(CX, .26, CZ + .296); scene.add(plaque);
+  const placaM = glow('#b98cf5'); const plaque = new THREE.Mesh(new THREE.PlaneGeometry(.2, .2), placaM); plaque.rotation.z = Math.PI / 4; plaque.position.set(CX, .26, CZ + .296); scene.add(plaque);
   // anéis de luz suspensos
   for (const [x, y, z, r] of [[CX + .75, 2.25, CZ + .25, .58], [CX + 1.7, 2.55, CZ + .1, .36]]) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(r, .022, 10, 64), glow('#ffe0ad')); ring.rotation.x = Math.PI / 2; ring.position.set(x, y, z); scene.add(ring);
@@ -98,6 +98,19 @@ try {
   const warm = (x, y, z, i, d = 6) => { const l = new THREE.PointLight('#ffc58a', i, d, 1.6); l.position.set(x, y, z); scene.add(l); return l; };
   warm(CX + .6, 2.0, CZ + .3, 9); warm(-1.5, 1.2, BZ + .7, 5, 4); warm(-2.8, 1.6, 1.2, 6);
   const dusk = new THREE.PointLight('#c58ad8', 5, 7, 1.5); dusk.position.set(-W / 2 + .4, 1.6, 0); scene.add(dusk);
+
+  /* ---------- estilos de cenário ---------- */
+  const lisoT = canvasTex(8, 8, x => { x.fillStyle = '#fff'; x.fillRect(0, 0, 8, 8); });
+  const ESTILOS = {
+    moderno: {parede: '#ffffff', liso: false, madeira: '#9a633c', madeiraEsc: '#5e3920', led: '#a56bff', luz: '#9b5cff', piso: '#ffffff', tampo: '#ece7df', letra: '#fff3df', halo: '#ffb866', fundo: '#0c0a13'},
+    minimalista: {parede: '#f1eee9', liso: true, madeira: '#d9c3a1', madeiraEsc: '#bfa888', led: '#fff4e0', luz: '#ffe9cc', piso: '#f4f1ec', tampo: '#ffffff', letra: '#3a3a3a', halo: '#ffffff', fundo: '#15141a'},
+    classico: {parede: '#33473d', liso: true, madeira: '#6b4226', madeiraEsc: '#3b2414', led: '#ffcf7a', luz: '#ffb85c', piso: '#c9a57c', tampo: '#e8dcc6', letra: '#f1d9a0', halo: '#c79a45', fundo: '#0f0c0a'}
+  };
+  R.setEstilo = id => { const e = ESTILOS[id] || ESTILOS.moderno;
+    paredeM.map = e.liso ? lisoT : concT; paredeM.color.set(e.parede); paredeM.needsUpdate = true; wood.color.set(e.madeira); woodD.color.set(e.madeiraEsc); ledM.color.set(e.led); led.color.set(e.luz); placaM.color.set(e.led);
+    floor.material.color.set(e.piso); tampoM.color.set(e.tampo); sign.material.color.set(e.letra); halo.material.color.set(e.halo); halo.material.opacity = id === 'minimalista' ? 0 : .35; scene.background.set(e.fundo); scene.fog.color.set(e.fundo); };
+  R.setLogo = url => { if (!url) return; const im = new Image(); im.onload = () => { const x = signT.image.getContext('2d'), w = 1024, h = 320, k = Math.min(w * .9 / im.width, h * .92 / im.height);
+    x.clearRect(0, 0, w, h); x.drawImage(im, (w - im.width * k) / 2, (h - im.height * k) / 2, im.width * k, im.height * k); signT.needsUpdate = true; sign.material.color.set('#ffffff'); halo.visible = false; }; im.src = url; };
 
   /* ---------- móveis e plantas ---------- */
   const loader = new GLTFLoader(), cache = new Map();
