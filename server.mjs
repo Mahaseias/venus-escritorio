@@ -899,7 +899,7 @@ async function cadastro(req, res, url, path) {
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); let path = url.pathname, slug = 'venus';
-  if (req.method === 'GET' && paginas[path]) { const [buf, type] = paginas[path]; res.writeHead(200, {'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...(path === '/criar' ? {'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"} : {})}); return res.end(buf); }
+  if (req.method === 'GET' && paginas[path]) { const [buf, type] = paginas[path]; res.writeHead(200, {'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...(path === '/criar' ? {'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' blob: data:"} : {})}); return res.end(buf); }
   if (path === '/api/cadastro') return cadastro(req, res, url, path);
   const m = /^\/e\/([a-z0-9-]{3,40})(\/.*)?$/.exec(path);
   if (m) { slug = m[1]; path = m[2] || '/'; }
