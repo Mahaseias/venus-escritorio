@@ -104,6 +104,8 @@ try {
   const ESTILOS = {
     moderno: {parede: '#ffffff', liso: false, madeira: '#9a633c', madeiraEsc: '#5e3920', led: '#a56bff', luz: '#9b5cff', piso: '#ffffff', tampo: '#ece7df', letra: '#fff3df', halo: '#ffb866', fundo: '#0c0a13'},
     minimalista: {parede: '#f1eee9', liso: true, madeira: '#d9c3a1', madeiraEsc: '#bfa888', led: '#fff4e0', luz: '#ffe9cc', piso: '#f4f1ec', tampo: '#ffffff', letra: '#3a3a3a', halo: '#ffffff', fundo: '#15141a'},
+    escultural: {parede: '#e9dfce', liso: true, madeira: '#8a6a48', madeiraEsc: '#5c4630', led: '#ffd28a', luz: '#ffc470', piso: '#efe6d8', tampo: '#ffffff', letra: '#8a6a2e', halo: '#ffe2a8', fundo: '#100d0a'},
+    vitrine: {parede: '#ffffff', liso: false, madeira: '#b98a52', madeiraEsc: '#7a5a34', led: '#ffd9a0', luz: '#ffbf73', piso: '#e9e2d6', tampo: '#f3ece0', letra: '#fff1d6', halo: '#b98a52', fundo: '#0e0c0a'},
     classico: {parede: '#33473d', liso: true, madeira: '#6b4226', madeiraEsc: '#3b2414', led: '#ffcf7a', luz: '#ffb85c', piso: '#c9a57c', tampo: '#e8dcc6', letra: '#f1d9a0', halo: '#c79a45', fundo: '#0f0c0a'}
   };
   R.setEstilo = id => { const e = ESTILOS[id] || ESTILOS.moderno;

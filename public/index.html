@@ -18,7 +18,7 @@ button:focus-visible,[tabindex]:focus-visible,textarea:focus-visible,input:focus
 
 /* Entrada */
 #exterior{position:relative;height:100vh;height:100dvh;display:grid;place-items:end start;overflow:hidden}
-#exterior img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#exterior img,#exterior canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 #exterior::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,12,22,.15) 0%,rgba(14,12,22,.35) 45%,rgba(14,12,22,.92) 100%)}
 .hero{position:relative;z-index:1;padding:clamp(24px,6vw,72px);padding-bottom:max(clamp(24px,6vw,72px),env(safe-area-inset-bottom));max-width:760px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.18em;font-size:12px;color:var(--accent2)}
@@ -188,10 +188,11 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
 <body>
 <section id="exterior">
   <img src="/fachada.jpg" width="1672" height="941" alt="Sede virtual da Venus com fachada de concreto, brises escuros e hall envidraçado iluminado.">
+  <canvas id="fgl" hidden aria-hidden="true"></canvas>
   <div class="hero">
     <div class="brand"><i></i>VENUS TECNOLOGIA</div>
-    <h1>Escritório da Venus</h1>
-    <p>Entre na recepção e fale com a Lívia. Ela tira dúvidas, anota seu recado e avisa a equipe da Venus.</p>
+    <h1 id="htit">Escritório da Venus</h1>
+    <p id="hsub">Entre na recepção e fale com a Lívia. Ela tira dúvidas, anota seu recado e avisa a equipe da Venus.</p>
     <button class="cta" id="enter">Entrar na recepção →</button>
   </div>
 </section>
@@ -257,6 +258,7 @@ dialog input{width:100%;margin-top:4px;background:#120f1c;border:1px solid #3a31
 
 <script src="/app.js"></script>
 <script type="module" src="/recepcao3d.js"></script>
+<script type="module" src="/fachada3d.js"></script>
 <script type="module" src="/office3d.js"></script>
 </body>
 </html>

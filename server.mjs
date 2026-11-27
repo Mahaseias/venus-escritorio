@@ -13,7 +13,8 @@ const STATIC = {
   '/fachada.jpg': ['fachada.jpg', 'image/jpeg'],
   '/office3d.js': ['office3d.js', 'text/javascript; charset=utf-8'],
   '/recepcao3d.js': ['recepcao3d.js', 'text/javascript; charset=utf-8'],
-  '/estudio.js': ['estudio.js', 'text/javascript; charset=utf-8']
+  '/estudio.js': ['estudio.js', 'text/javascript; charset=utf-8'],
+  '/fachada3d.js': ['fachada3d.js', 'text/javascript; charset=utf-8']
 };
 const files = Object.fromEntries(Object.entries(STATIC).map(([k, [f, t]]) => [k, [readFileSync(pub(f)), t]]));
 const assets = new Map();

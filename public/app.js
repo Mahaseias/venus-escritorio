@@ -5,7 +5,7 @@ const BASE=(/^\/e\/[a-z0-9-]{3,40}/.exec(location.pathname)||[''])[0]; // escrit
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let place='fora'; // fora (fachada) · rec (recepção, aberta a visitantes) · dentro (escritório, só equipe)
 function go(p){place=p;el('exterior').hidden=p!=='fora';el('recepcao').hidden=p!=='rec';el('interior').hidden=p!=='dentro';
-  const R3=window.R3D;if(R3)p==='rec'?R3.start():R3.stop();
+  const R3=window.R3D;if(R3)p==='rec'?R3.start():R3.stop();if(BASE&&window.F3D)p==='fora'&&rec?window.F3D.start():window.F3D.stop();
   if(p==='rec')openReception();if(p==='dentro'){resize();el('back').focus()}if(p==='fora')el('enter').focus()}
 el('enter').onclick=()=>go('rec');el('back').onclick=()=>go('rec');el('rback').onclick=()=>go('fora');
 
@@ -623,11 +623,12 @@ function apply(list){
   funcs=list;sync();renderList();updateFicha(false);setConn();
 }
 let real=null,rec=null,reuniaoOn=false,marcaDe=null;
-function cena(){const R3=window.R3D;if(!BASE||!rec||!R3||!R3.setEstilo)return;R3.setEstilo(rec.cenario);if(rec.logo)R3.setLogo(rec.logo);else R3.setEmpresa(rec.empresa)}
+function cena(){const R3=window.R3D,F3=window.F3D;if(!BASE||!rec)return;if(R3&&R3.setEstilo){R3.setEstilo(rec.cenario);if(rec.logo)R3.setLogo(rec.logo);else R3.setEmpresa(rec.empresa)}
+  if(F3&&F3.setEstilo){F3.setEstilo(rec.cenario);if(rec.logo)F3.setLogo(rec.logo);else F3.setEmpresa(rec.empresa);F3.enquadrar('centro');if(place==='fora')F3.start()}}
 function marca(){ // nome da empresa na tela (a Venus já vem escrita no HTML)
   if(!BASE||!rec||!rec.empresa||marcaDe===rec.empresa)return;marcaDe=rec.empresa;
   document.querySelectorAll('.brand').forEach(b=>{for(const n of b.childNodes)if(n.nodeType===3&&n.textContent.trim()){n.textContent=rec.empresa.toUpperCase()+' ';break}});
-  document.title='Escritório virtual · '+rec.empresa;el('rback').hidden=true;cena();
+  document.title='Escritório virtual · '+rec.empresa;el('fgl').hidden=false;document.querySelector('#exterior img').hidden=true;el('htit').textContent=rec.empresa;el('hsub').textContent=`Entre na recepção e fale com ${primeiro(rec.nome)}. Atendimento a qualquer hora, com recado direto para a equipe.`;cena();
 }
 async function poll(once){
   try{const r=await fetch(BASE+'/api/office',{cache:'no-store'});if(!r.ok)throw 0;real=await r.json();
@@ -660,5 +661,5 @@ el('tour').onclick=()=>{
   if(selected)openFicha(selected);
 };
 
-renderEvents();renderWho();resize();requestAnimationFrame(frame);poll();if(BASE){el('best').hidden=true;document.querySelector('.foot').textContent='Clique em um funcionário para ver o perfil, a agenda e conversar. Área restrita à equipe.';go('rec')}
+renderEvents();renderWho();resize();requestAnimationFrame(frame);poll();if(BASE){el('best').hidden=true;document.querySelector('#exterior img').hidden=true;el('htit').textContent='';el('hsub').textContent='';document.querySelector('.foot').textContent='Clique em um funcionário para ver o perfil, a agenda e conversar. Área restrita à equipe.'}
 })();
