@@ -182,7 +182,7 @@ function frame(now){
     if(c.path.length){const[tx,ty]=c.path[0];target={x:tx*T+8,y:ty*T+8,tile:true}}
     else if(c.final)target=c.final;
     if(!target)return;
-    const dx=target.x-c.x,dy=target.y-c.y,d=Math.hypot(dx,dy),sp=40*dt;
+    const dx=target.x-c.x,dy=target.y-c.y,d=Math.hypot(dx,dy),sp=36*dt;
     if(Math.abs(dx)>Math.abs(dy))c.dir=dx<0?'l':'r';else if(Math.abs(dy)>.1)c.dir=dy<0?'u':'d';
     if(d<=sp){c.x=target.x;c.y=target.y;c.dist+=d;if(target.tile){c.path.shift();if(!c.path.length&&!c.final)arrive(c)}else{c.final=null;arrive(c)}}
     else{c.x+=dx/d*sp;c.y+=dy/d*sp;c.dist+=sp}

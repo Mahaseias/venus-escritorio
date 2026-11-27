@@ -120,7 +120,7 @@ try {
   R.setModel = async m => {
     if (!m || m === modelName) return; modelName = m;
     try {
-      const g = await load(`/models/c/${m}.glb`); if (actor) scene.remove(actor);
+      const g = await load(`/models/c/${m}.glb?v=3`); if (actor) scene.remove(actor);
       let real = false; g.scene.traverse(n => { if (n.userData && n.userData.real) real = true; });
       actor = cloneSkinned(g.scene); actor.scale.setScalar(1.22); actor.position.set(CX - .25, real ? 0 : .2, CZ - .5); actor.rotation.y = .12; tagY = real ? 1.22 : 1.2;
       actor.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; } }); scene.add(actor);

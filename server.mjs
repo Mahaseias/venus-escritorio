@@ -14,7 +14,7 @@ const STATIC = {
   '/estudio.js': ['estudio.js', 'text/javascript; charset=utf-8']
 };
 const files = Object.fromEntries(Object.entries(STATIC).map(([k, [f, t]]) => [k, [readFileSync(pub(f)), t]]));
-const assets = new Map();
+const assets = new Map(), etags = new Map();
 const cfg = JSON.parse(readFileSync(pub('agents.json')));
 const SETORES = cfg.setores, FUNC = cfg.funcionarios, TZ = cfg.fuso || 'America/Cuiaba';
 const byId = Object.fromEntries(FUNC.map(f => [f.id, f]));
@@ -574,7 +574,13 @@ http.createServer(async (req, res) => {
       const asset = /^\/(vendor|models)\/((?:[\w-]+\/)*[\w.-]+\.(js|glb|png))$/.exec(path);
       if (asset && !path.includes('..')) {
         if (!assets.has(path)) { try { assets.set(path, readFileSync(pub(path.slice(1)))); } catch { return send(404, {}); } }
-        return send(200, assets.get(path), {js: 'text/javascript; charset=utf-8', glb: 'model/gltf-binary', png: 'image/png'}[asset[3]], {'Cache-Control': 'public, max-age=86400'});
+        const tipo = {js: 'text/javascript; charset=utf-8', glb: 'model/gltf-binary', png: 'image/png'}[asset[3]];
+        // bonecos mudam (estúdio, correções): o navegador confere a cada visita se o arquivo ainda é o mesmo, em vez de guardar por um dia
+        if (asset[1] === 'models') { if (!etags.has(path)) etags.set(path, '"' + createHash('sha1').update(assets.get(path)).digest('hex').slice(0, 20) + '"');
+          const et = etags.get(path), h = {'Cache-Control': 'no-cache', ETag: et};
+          if (req.headers['if-none-match'] === et) { res.writeHead(304, h); return res.end(); }
+          return send(200, assets.get(path), tipo, h); }
+        return send(200, assets.get(path), tipo, {'Cache-Control': 'public, max-age=86400'});
       }
       if (path === '/health') return send(200, {ok: true});
       if (path === '/api/office') return send(200, office(user));

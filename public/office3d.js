@@ -161,15 +161,25 @@ try {
   function spawn(c) {
     const a = {obj: new THREE.Group(), cur: '', ready: false}; actors.set(c.id, a);
     a.obj.position.set(c.x, 0, c.z); a.obj.rotation.y = DIR[c.dir] ?? 0; scene.add(a.obj);
-    load(`/models/c/${c.model || 'character-male-a'}.glb`).then(g => {
+    load(`/models/c/${c.model || 'character-male-a'}.glb?v=3`).then(g => {
       const o = cloneSkinned(g.scene); o.scale.setScalar(CS); o.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; } });
       a.obj.add(o); a.inner = o; if (isReal(g)) a.sitHip = .28; a.mixer = new THREE.AnimationMixer(o); a.acts = {};
       for (const n of ['idle', 'walk', 'sit', 'interact-right']) { const clip = g.animations.find(x => x.name === n); if (clip) a.acts[n] = a.mixer.clipAction(clip); }
-      if (isReal(g) && a.acts.walk) a.acts.walk.timeScale = 1.37;   // passo real cobre ~0,91 por segundo; o escritório desloca a 1,25
+      if (isReal(g) && a.acts.walk) a.passo = medePasso(a, o);   // quanto de chão um ciclo de caminhada cobre, para o pé acompanhar o deslocamento
       a.ready = true;
       if (!portraits.has(c.model)) { makePortrait(c.model, g); dispatchEvent(new Event('v3d-ready')); }
     }).catch(() => {});
     return a;
+  }
+  /* Mede o passo do boneco: toca a caminhada parada no lugar e vê quanto cada pé vai para trás enquanto está apoiado.
+     Com isso o ritmo das pernas segue a distância realmente percorrida e o pé não arrasta. */
+  function medePasso(a, o) {
+    const act = a.acts.walk, clip = act.getClip(), pes = ['mixamorigLeftFoot', 'mixamorigRightFoot'].map(n => o.getObjectByName(n)); if (pes.some(p => !p)) return null;
+    const v = new THREE.Vector3(), lim = pes.map(() => [1e9, -1e9]); act.play();
+    for (let i = 0; i < 32; i++) { a.mixer.setTime(clip.duration * i / 32); a.obj.updateMatrixWorld(true);
+      pes.forEach((p, k) => { const z = a.obj.worldToLocal(p.getWorldPosition(v)).z; lim[k][0] = Math.min(lim[k][0], z); lim[k][1] = Math.max(lim[k][1], z); }); }
+    act.stop(); a.mixer.setTime(0); const dist = lim.reduce((t, l) => t + l[1] - l[0], 0);
+    return dist > .05 ? {dist, dur: clip.duration} : null;
   }
   function play(a, name) {
     if (!a.ready || a.cur === name || !a.acts[name]) return;
@@ -191,7 +201,10 @@ try {
     for (const c of s.chars) {
       seen.add(c.id); const a = actors.get(c.id) || spawn(c);
       const seated = c.sit && !c.moving;
+      const px = a.obj.position.x, pz = a.obj.position.z;
       a.obj.position.x += (c.x - a.obj.position.x) * Math.min(1, dt * 18); a.obj.position.z += (c.z - a.obj.position.z) * Math.min(1, dt * 18);
+      if (a.passo && dt > 0) { const vel = Math.hypot(a.obj.position.x - px, a.obj.position.z - pz) / dt; a.vel = (a.vel ?? vel) + (vel - (a.vel ?? vel)) * Math.min(1, dt * 8);
+        a.acts.walk.timeScale = Math.min(2.2, Math.max(.35, a.vel / (a.passo.dist / a.passo.dur))); }
       const ty = seated ? Math.max(0, c.sh - (a.sitHip ?? SIT_HIP)) : 0; a.obj.position.y += (ty - a.obj.position.y) * Math.min(1, dt * 10);
       let d = (DIR[c.dir] ?? 0) - a.obj.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); a.obj.rotation.y += d * Math.min(1, dt * 12);
       play(a, c.moving ? 'walk' : seated ? 'sit' : 'idle'); if (a.mixer) a.mixer.update(dt);
@@ -209,7 +222,7 @@ try {
   const v3 = new THREE.Vector3();
   V.project = (x, y, z) => { v3.set(x, y, z).project(camera); return {x: (v3.x + 1) / 2 * W, y: (1 - v3.y) / 2 * H, behind: v3.z > 1}; };
   const asked = new Set();
-  V.portrait = m => { if (m && !portraits.has(m) && !asked.has(m)) { asked.add(m); load(`/models/c/${m}.glb`).then(g => { if (!portraits.has(m)) { makePortrait(m, g); dispatchEvent(new Event('v3d-ready')); } }).catch(() => {}); } return portraits.get(m) || null; };
+  V.portrait = m => { if (m && !portraits.has(m) && !asked.has(m)) { asked.add(m); load(`/models/c/${m}.glb?v=3`).then(g => { if (!portraits.has(m)) { makePortrait(m, g); dispatchEvent(new Event('v3d-ready')); } }).catch(() => {}); } return portraits.get(m) || null; };
 
   furniture().then(() => { V.ready = true; dispatchEvent(new Event('v3d-ready')); }).catch(e => { console.error(e); V.error = true; });
 } catch (e) { console.error(e); V.error = true; }
