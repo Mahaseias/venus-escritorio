@@ -165,6 +165,7 @@ try {
       const o = cloneSkinned(g.scene); o.scale.setScalar(CS); o.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; } });
       a.obj.add(o); a.inner = o; if (isReal(g)) a.sitHip = .28; a.mixer = new THREE.AnimationMixer(o); a.acts = {};
       for (const n of ['idle', 'walk', 'sit', 'interact-right']) { const clip = g.animations.find(x => x.name === n); if (clip) a.acts[n] = a.mixer.clipAction(clip); }
+      if (isReal(g) && a.acts.walk) a.acts.walk.timeScale = 1.37;   // passo real cobre ~0,91 por segundo; o escritório desloca a 1,25
       a.ready = true;
       if (!portraits.has(c.model)) { makePortrait(c.model, g); dispatchEvent(new Event('v3d-ready')); }
     }).catch(() => {});
